@@ -104,12 +104,13 @@ safe_remove_install_dir() {
         exit 1
     fi
 
-    rm -rf -- "$INSTALL_DIR"
+    "$RM_COMMAND" -rf -- "$INSTALL_DIR"
 }
 
 finish() {
     step "Instalacion finalizada"
     ok "Odoo quedo instalado como servicio systemd: ${SERVICE_NAME}"
+    ok "CLI instalada: ${CLI_COMMAND}"
     info "Configuracion: ${ODOO_CONF}"
     info "Logs: ${ODOO_LOG_FILE}"
     info "URL local: http://localhost:${ODOO_PORT}"

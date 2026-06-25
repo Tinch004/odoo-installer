@@ -18,6 +18,8 @@ source "$ROOT_DIR/lib/odoo.sh"
 source "$ROOT_DIR/lib/postgres.sh"
 # shellcheck source=lib/service.sh
 source "$ROOT_DIR/lib/service.sh"
+# shellcheck source=lib/cli.sh
+source "$ROOT_DIR/lib/cli.sh"
 
 banner
 check_root
@@ -27,5 +29,6 @@ install_odoo
 configure_postgres
 generate_config
 create_service
+install_cli
 start_odoo
 finish

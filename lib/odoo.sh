@@ -66,40 +66,40 @@ prepare_install_directory() {
 directory_has_content() {
     local directory="$1"
 
-    find "$directory" -mindepth 1 -maxdepth 1 -print -quit | grep -q .
+    "$FIND_COMMAND" "$directory" -mindepth 1 -maxdepth 1 -print -quit | grep -q .
 }
 
 clone_odoo_repository() {
     run_command "Clonando Odoo ${ODOO_VERSION}..." \
-        git clone --branch "$ODOO_VERSION" "$ODOO_REPOSITORY" "$INSTALL_DIR"
+        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "$ODOO_REPOSITORY" "$INSTALL_DIR"
 }
 
 create_runtime_directories() {
-    run_command "Creando directorios runtime..." mkdir -p "$SOURCES_DIR" "$DATA_DIR"
+    run_command "Creando directorios runtime..." "$MKDIR_COMMAND" -p "$SOURCES_DIR" "$DATA_DIR"
 }
 
 create_virtualenv() {
-    run_command "Creando entorno virtual..." python3 -m venv "$VENV_DIR"
+    run_command "Creando entorno virtual..." "$PYTHON3_COMMAND" -m venv "$VENV_DIR"
 }
 
 install_python_requirements() {
     run_command "Actualizando pip, wheel y setuptools..." \
-        "$VENV_DIR/bin/python" -m pip install --upgrade pip wheel setuptools
+        "$PYTHON_BIN" -m pip install --upgrade pip wheel setuptools
 
     run_command "Instalando requirements.txt de Odoo..." \
-        "$VENV_DIR/bin/python" -m pip install -r "$REQUIREMENTS_FILE"
+        "$PYTHON_BIN" -m pip install -r "$REQUIREMENTS_FILE"
 }
 
 update_odoo() {
-    run_command "Actualizando repositorio Odoo..." git -C "$INSTALL_DIR" pull
+    run_command "Actualizando repositorio Odoo..." "$GIT_COMMAND" -C "$INSTALL_DIR" pull
     create_runtime_directories
 
-    if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+    if [[ ! -x "$PYTHON_BIN" ]]; then
         create_virtualenv
     fi
 
     run_command "Actualizando requirements.txt en el entorno virtual..." \
-        "$VENV_DIR/bin/python" -m pip install -r "$REQUIREMENTS_FILE"
+        "$PYTHON_BIN" -m pip install -r "$REQUIREMENTS_FILE"
 
     set_installation_permissions
     ok "Odoo actualizado correctamente."
@@ -120,5 +120,5 @@ reinstall_odoo() {
 
 set_installation_permissions() {
     run_command "Configurando permisos de ${INSTALL_DIR}..." \
-        chown -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$INSTALL_DIR"
+        "$CHOWN_COMMAND" -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$INSTALL_DIR"
 }

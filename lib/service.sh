@@ -5,16 +5,16 @@ set -Eeuo pipefail
 create_service() {
     step "Creando servicio systemd"
     render_service_template
-    run_command "Recargando systemd..." systemctl daemon-reload
-    run_command "Habilitando servicio ${SERVICE_NAME}..." systemctl enable "$SERVICE_NAME"
+    run_command "Recargando systemd..." "$SYSTEMCTL_COMMAND" daemon-reload
+    run_command "Habilitando servicio ${SERVICE_NAME}..." "$SYSTEMCTL_COMMAND" enable "$SERVICE_NAME"
     ok "Servicio ${SERVICE_NAME} creado correctamente."
 }
 
 start_odoo() {
     step "Iniciando Odoo"
-    run_command "Reiniciando servicio ${SERVICE_NAME}..." systemctl restart "$SERVICE_NAME"
+    run_command "Reiniciando servicio ${SERVICE_NAME}..." "$SYSTEMCTL_COMMAND" restart "$SERVICE_NAME"
 
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if "$SYSTEMCTL_COMMAND" is-active --quiet "$SERVICE_NAME"; then
         ok "El servicio ${SERVICE_NAME} esta activo."
         return
     fi
@@ -26,8 +26,8 @@ start_odoo() {
 render_service_template() {
     local temp_file
 
-    temp_file="$(mktemp)"
-    sed \
+    temp_file="$("$MK_TEMP_COMMAND")"
+    "$SED_COMMAND" \
         -e "s|{{SERVICE_NAME}}|${SERVICE_NAME}|g" \
         -e "s|{{RUN_AS_USER}}|${RUN_AS_USER}|g" \
         -e "s|{{RUN_AS_GROUP}}|${RUN_AS_GROUP}|g" \
@@ -37,6 +37,6 @@ render_service_template() {
         -e "s|{{ODOO_CONF}}|${ODOO_CONF}|g" \
         "$ODOO_SERVICE_TEMPLATE" >"$temp_file"
 
-    install -m 0644 "$temp_file" "$SERVICE_FILE"
-    rm -f "$temp_file"
+    "$INSTALL_COMMAND" -m 0644 "$temp_file" "$SERVICE_FILE"
+    "$RM_COMMAND" -f "$temp_file"
 }

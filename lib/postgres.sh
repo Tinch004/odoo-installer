@@ -5,11 +5,11 @@ set -Eeuo pipefail
 configure_postgres() {
     step "Configurando PostgreSQL"
 
-    run_command "Habilitando PostgreSQL..." systemctl enable --now postgresql
+    run_command "Habilitando PostgreSQL..." "$SYSTEMCTL_COMMAND" enable --now postgresql
     create_postgres_user
     create_postgres_database
     configure_postgres_local_access
-    run_command "Recargando PostgreSQL..." systemctl reload postgresql
+    run_command "Recargando PostgreSQL..." "$SYSTEMCTL_COMMAND" reload postgresql
 
     ok "PostgreSQL configurado correctamente."
 }
@@ -21,7 +21,7 @@ create_postgres_user() {
     fi
 
     run_command "Creando usuario PostgreSQL ${POSTGRES_USER}..." \
-        runuser -u postgres -- createuser "$POSTGRES_USER"
+        "$RUNUSER_COMMAND" -u postgres -- "$CREATEUSER_COMMAND" "$POSTGRES_USER"
 }
 
 create_postgres_database() {
@@ -31,17 +31,17 @@ create_postgres_database() {
     fi
 
     run_command "Creando base PostgreSQL ${POSTGRES_DB}..." \
-        runuser -u postgres -- createdb --owner="$POSTGRES_USER" "$POSTGRES_DB"
+        "$RUNUSER_COMMAND" -u postgres -- "$CREATEDB_COMMAND" --owner="$POSTGRES_USER" "$POSTGRES_DB"
 }
 
 postgres_role_exists() {
-    runuser -u postgres -- psql -tAc \
+    "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc \
         "SELECT 1 FROM pg_roles WHERE rolname = '${POSTGRES_USER}'" |
         grep -qx '1'
 }
 
 postgres_database_exists() {
-    runuser -u postgres -- psql -tAc \
+    "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc \
         "SELECT 1 FROM pg_database WHERE datname = '${POSTGRES_DB}'" |
         grep -qx '1'
 }
@@ -50,7 +50,7 @@ configure_postgres_local_access() {
     local hba_file
     local temp_file
 
-    hba_file="$(runuser -u postgres -- psql -tAc 'SHOW hba_file;' | tr -d '[:space:]')"
+    hba_file="$("$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc 'SHOW hba_file;' | tr -d '[:space:]')"
 
     if [[ -z "$hba_file" || ! -f "$hba_file" ]]; then
         error "No se pudo detectar pg_hba.conf."
@@ -63,8 +63,8 @@ configure_postgres_local_access() {
     fi
 
     info "Agregando regla local acotada en ${hba_file}..."
-    cp "$hba_file" "${hba_file}.odoo-installer.bak.$(date +%Y%m%d%H%M%S)"
-    temp_file="$(mktemp)"
+    cp "$hba_file" "${hba_file}.odoo-installer.bak.$("$DATE_COMMAND" +%Y%m%d%H%M%S)"
+    temp_file="$("$MK_TEMP_COMMAND")"
 
     {
         printf '# Managed by odoo-installer. Required for db_user=%s with db_password=False.\n' "$POSTGRES_USER"
@@ -72,6 +72,6 @@ configure_postgres_local_access() {
         cat "$hba_file"
     } >"$temp_file"
 
-    install -m 0640 -o postgres -g postgres "$temp_file" "$hba_file"
-    rm -f "$temp_file"
+    "$INSTALL_COMMAND" -m 0640 -o postgres -g postgres "$temp_file" "$hba_file"
+    "$RM_COMMAND" -f "$temp_file"
 }

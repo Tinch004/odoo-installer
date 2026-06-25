@@ -39,6 +39,7 @@ lib/
     postgres.sh
     config.sh
     service.sh
+    cli.sh
 
 templates/
     odoo.conf
@@ -68,6 +69,7 @@ Tambien crea:
 /etc/odoo.conf
 /etc/systemd/system/odoo.service
 /var/log/odoo/odoo.log
+/usr/local/bin/odoo
 ```
 
 ## Servicio
@@ -85,3 +87,54 @@ systemctl daemon-reload
 systemctl enable odoo
 systemctl restart odoo
 ```
+
+## CLI de administracion
+
+Despues de instalar, el sistema queda con el comando:
+
+```bash
+odoo
+```
+
+Comandos disponibles:
+
+```bash
+odoo start
+odoo stop
+odoo restart
+odoo status
+odoo logs
+odoo shell
+odoo config
+odoo version
+odoo update
+odoo update-module sale
+odoo backup
+odoo restore
+odoo git
+odoo service
+odoo fix-permissions
+odoo doctor
+```
+
+Ejemplos:
+
+```bash
+odoo logs
+odoo restart
+odoo doctor
+odoo update
+odoo backup
+odoo restore
+odoo update-module sale
+```
+
+### Backups
+
+`odoo backup` genera archivos en:
+
+```text
+~/Backups/Odoo/YYYY-MM-DD_HH-MM.dump
+```
+
+`odoo restore` lista los backups disponibles y permite seleccionar cual restaurar.

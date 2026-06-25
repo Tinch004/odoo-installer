@@ -47,13 +47,13 @@ APT_PACKAGES=(
 install_dependencies() {
     step "Instalando dependencias"
     ensure_supported_ubuntu
-    require_command apt-get
+    require_command "$APT_GET_COMMAND"
 
     export DEBIAN_FRONTEND=noninteractive
 
-    run_command "Actualizando indices de APT..." apt-get update
+    run_command "Actualizando indices de APT..." "$APT_GET_COMMAND" update
     run_command "Instalando paquetes del sistema..." \
-        apt-get install -y --no-install-recommends "${APT_PACKAGES[@]}"
+        "$APT_GET_COMMAND" install -y --no-install-recommends "${APT_PACKAGES[@]}"
 
     install_rtlcss
 
@@ -66,5 +66,5 @@ install_rtlcss() {
         return
     fi
 
-    run_command "Instalando rtlcss..." npm install -g rtlcss
+    run_command "Instalando rtlcss..." "$NPM_COMMAND" install -g rtlcss
 }
