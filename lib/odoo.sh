@@ -75,7 +75,7 @@ clone_odoo_repository() {
 }
 
 create_runtime_directories() {
-    run_command "Creando directorios runtime..." "$MKDIR_COMMAND" -p "$SOURCES_DIR" "$DATA_DIR"
+    run_command "Creando directorios runtime..." "$MKDIR_COMMAND" -p "$SOURCES_DIR" "$DATA_DIR" "$BACKUP_DIR"
 }
 
 create_virtualenv() {
@@ -121,4 +121,102 @@ reinstall_odoo() {
 set_installation_permissions() {
     run_command "Configurando permisos de ${INSTALL_DIR}..." \
         "$CHOWN_COMMAND" -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$INSTALL_DIR"
+}
+
+odoo_logs() {
+    ensure_file "$ODOO_LOG_FILE"
+    "$TAIL_COMMAND" -f "$ODOO_LOG_FILE"
+}
+
+odoo_shell() {
+    ensure_directory "$INSTALL_DIR"
+    ensure_file "$VENV_ACTIVATE"
+
+    cd "$INSTALL_DIR"
+    # shellcheck source=/dev/null
+    source "$VENV_ACTIVATE"
+    exec "${SHELL:-/bin/bash}" -i
+}
+
+odoo_config_edit() {
+    ensure_file "$ODOO_CONF"
+    run_privileged "$NANO_COMMAND" "$ODOO_CONF"
+}
+
+odoo_version() {
+    local installed_version
+    local branch
+    local commit
+    local python_version
+
+    ensure_odoo_installation
+    installed_version="$(get_odoo_version)"
+    branch="$(git_value rev-parse --abbrev-ref HEAD)"
+    commit="$(git_value rev-parse --short HEAD)"
+    python_version="$("$PYTHON_BIN" --version 2>&1)"
+
+    print_field "Version instalada" "$installed_version"
+    print_field "Commit de Git" "$commit"
+    print_field "Branch" "$branch"
+    print_field "Ruta" "$INSTALL_DIR"
+    print_field "Puerto" "$ODOO_PORT"
+    print_field "Base de datos" "$POSTGRES_DB"
+    print_field "Servicio" "$SERVICE_NAME"
+    print_field "Python" "$python_version"
+    print_field "Virtualenv" "$VENV_DIR"
+}
+
+odoo_update() {
+    ensure_odoo_installation
+
+    (
+        cd "$INSTALL_DIR"
+        "$GIT_COMMAND" pull
+        # shellcheck source=/dev/null
+        source "$VENV_ACTIVATE"
+        "$PYTHON_BIN" -m pip install -r "$REQUIREMENTS_FILE"
+    )
+
+    odoo_service_restart
+    ok "Odoo actualizado correctamente."
+}
+
+odoo_update_module() {
+    local module_name="${1:-}"
+
+    ensure_odoo_installation
+
+    if [[ -z "$module_name" ]]; then
+        error "Uso: odoo update-module MODULO"
+        exit 1
+    fi
+
+    "$PYTHON_BIN" \
+        "$ODOO_BIN" \
+        -c "$ODOO_CONF" \
+        -u "$module_name" \
+        --stop-after-init
+
+    odoo_service_restart
+    ok "Modulo actualizado: ${module_name}"
+}
+
+odoo_git_status() {
+    ensure_odoo_installation
+
+    print_field "Branch" "$(git_value rev-parse --abbrev-ref HEAD)"
+    print_field "Ultimo commit" "$(git_value log -1 --oneline)"
+    print_field "Repositorio" "$(git_value remote get-url origin)"
+    printf '\nEstado:\n'
+    "$GIT_COMMAND" -C "$INSTALL_DIR" status --short
+}
+
+odoo_fix_permissions() {
+    run_privileged "$INSTALL_COMMAND" -d -m 0755 -o "$RUN_AS_USER" -g "$RUN_AS_GROUP" \
+        "$ODOO_LOG_DIR" "$BACKUP_DIR" "$SOURCES_DIR" "$DATA_DIR"
+    run_privileged "$TOUCH_COMMAND" "$ODOO_LOG_FILE"
+    run_privileged "$CHOWN_COMMAND" -R "${RUN_AS_USER}:${RUN_AS_GROUP}" \
+        "$INSTALL_DIR" "$ODOO_LOG_DIR"
+    run_privileged "$CHMOD_COMMAND" 0644 "$ODOO_LOG_FILE"
+    ok "Permisos corregidos."
 }

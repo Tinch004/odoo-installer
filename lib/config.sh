@@ -10,6 +10,7 @@ VENV_DIR="${INSTALL_DIR}/venv"
 VENV_ACTIVATE="${VENV_DIR}/bin/activate"
 PYTHON_BIN="${VENV_DIR}/bin/python"
 DATA_DIR="${INSTALL_DIR}/data"
+BACKUP_DIR="${INSTALL_DIR}/backups"
 ODOO_BIN="${INSTALL_DIR}/odoo-bin"
 REQUIREMENTS_FILE="${INSTALL_DIR}/requirements.txt"
 
@@ -27,19 +28,54 @@ CLI_COMMAND="/usr/local/bin/odoo"
 CLI_ROOT_DIR="/usr/local/lib/odoo-installer"
 CLI_LIB_DIR="${CLI_ROOT_DIR}/lib"
 CLI_LIB_FILE="${CLI_LIB_DIR}/cli.sh"
+STATE_DIR="/etc/odoo-installer"
+STATE_FILE="${STATE_DIR}/state.env"
+BACKUP_CRON_FILE="/etc/cron.d/odoo-backup"
+BACKUP_LOG_FILE="${ODOO_LOG_DIR}/backup.log"
+CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+CLOUDFLARED_COMMAND="cloudflared"
+CLOUDFLARED_BIN="/usr/bin/cloudflared"
+CLOUDFLARED_KEYRING="/usr/share/keyrings/cloudflare-main.gpg"
+CLOUDFLARED_APT_SOURCE_FILE="/etc/apt/sources.list.d/cloudflared.list"
+CLOUDFLARED_CONFIG_DIR="/etc/cloudflared"
+CLOUDFLARED_CONFIG_FILE="${CLOUDFLARED_CONFIG_DIR}/config.yml"
+CLOUDFLARED_CERT_FILE="/root/.cloudflared/cert.pem"
+CLOUDFLARED_CREDENTIALS_DIR="/root/.cloudflared"
+CLOUDFLARED_TUNNEL_NAME="odoo"
+CLOUDFLARED_SERVICE_NAME="cloudflared-odoo"
+CLOUDFLARED_SERVICE_FILE="/etc/systemd/system/${CLOUDFLARED_SERVICE_NAME}.service"
+CLOUDFLARED_ORIGIN_SERVICE="http://localhost:${ODOO_PORT}"
+CLOUDFLARED_PACKAGE_REPOSITORY="deb [signed-by=${CLOUDFLARED_KEYRING}] https://pkg.cloudflare.com/cloudflared any main"
+CLOUDFLARED_GPG_URL="https://pkg.cloudflare.com/cloudflare-main.gpg"
+
+NGINX_SERVICE_NAME="nginx"
+NGINX_COMMAND="nginx"
+NGINX_SITE_NAME="odoo"
+NGINX_AVAILABLE_DIR="/etc/nginx/sites-available"
+NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+NGINX_SITE_FILE="${NGINX_AVAILABLE_DIR}/${NGINX_SITE_NAME}"
+NGINX_ENABLED_FILE="${NGINX_ENABLED_DIR}/${NGINX_SITE_NAME}"
+
+CERTBOT_COMMAND="certbot"
+CERTBOT_BIN="/usr/local/bin/certbot"
+SNAP_CERTBOT_BIN="/snap/bin/certbot"
 
 ODOO_REPOSITORY="https://github.com/odoo/odoo.git"
 PROJECT_ROOT="${ROOT_DIR:?ROOT_DIR is not defined}"
 TEMPLATE_DIR="${PROJECT_ROOT}/templates"
 ODOO_CONF_TEMPLATE="${TEMPLATE_DIR}/odoo.conf"
 ODOO_SERVICE_TEMPLATE="${TEMPLATE_DIR}/odoo.service"
+GETENT_COMMAND="getent"
 
 detect_user_home() {
     local user_name="$1"
     local detected_home=""
+    local passwd_entry=""
 
-    if command -v getent >/dev/null 2>&1; then
-        detected_home="$(getent passwd "$user_name" | cut -d ':' -f 6 || true)"
+    if command -v "$GETENT_COMMAND" >/dev/null 2>&1; then
+        passwd_entry="$("$GETENT_COMMAND" passwd "$user_name" || true)"
+        IFS=':' read -r _ _ _ _ _ detected_home _ <<<"$passwd_entry"
     fi
 
     if [[ -z "$detected_home" ]]; then
@@ -56,7 +92,6 @@ detect_user_home() {
 RUN_AS_USER="${SUDO_USER:-$(id -un)}"
 RUN_AS_GROUP="$(id -gn "$RUN_AS_USER")"
 RUN_AS_HOME="$(detect_user_home "$RUN_AS_USER")"
-BACKUP_DIR="${RUN_AS_HOME}/Backups/Odoo"
 
 APT_GET_COMMAND="apt-get"
 AWK_COMMAND="awk"
@@ -67,11 +102,15 @@ CHOWN_COMMAND="chown"
 CP_COMMAND="cp"
 CREATEDB_COMMAND="createdb"
 CREATEUSER_COMMAND="createuser"
+CURL_COMMAND="curl"
 DATE_COMMAND="date"
+DIRNAME_COMMAND="dirname"
 DROPDB_COMMAND="dropdb"
 FIND_COMMAND="find"
 GIT_COMMAND="git"
+GREP_COMMAND="grep"
 INSTALL_COMMAND="install"
+LN_COMMAND="ln"
 MKDIR_COMMAND="mkdir"
 MK_TEMP_COMMAND="mktemp"
 NANO_COMMAND="nano"
@@ -84,12 +123,14 @@ PYTHON3_COMMAND="python3"
 RM_COMMAND="rm"
 RUNUSER_COMMAND="runuser"
 SED_COMMAND="sed"
+SNAP_COMMAND="snap"
 SORT_COMMAND="sort"
 SS_COMMAND="ss"
 SUDO_COMMAND="sudo"
 SYSTEMCTL_COMMAND="systemctl"
 TAIL_COMMAND="tail"
 TOUCH_COMMAND="touch"
+TR_COMMAND="tr"
 
 ODOO_VERSION=""
 ODOO_ADMIN_PASSWORD=""
@@ -123,7 +164,7 @@ get_admin_password() {
                 gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
                 print $2
             }
-        ' "$ODOO_CONF" | tail -n 1)"
+        ' "$ODOO_CONF" | "$TAIL_COMMAND" -n 1)"
     fi
 
     if [[ -n "$existing_password" ]]; then

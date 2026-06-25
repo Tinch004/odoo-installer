@@ -10,6 +10,27 @@ create_service() {
     ok "Servicio ${SERVICE_NAME} creado correctamente."
 }
 
+odoo_service_start() {
+    run_privileged "$SYSTEMCTL_COMMAND" start "$SERVICE_NAME"
+}
+
+odoo_service_stop() {
+    run_privileged "$SYSTEMCTL_COMMAND" stop "$SERVICE_NAME"
+}
+
+odoo_service_restart() {
+    run_privileged "$SYSTEMCTL_COMMAND" restart "$SERVICE_NAME"
+}
+
+odoo_service_status() {
+    "$SYSTEMCTL_COMMAND" status "$SERVICE_NAME"
+}
+
+odoo_service_show() {
+    ensure_file "$SERVICE_FILE"
+    "$CAT_COMMAND" "$SERVICE_FILE"
+}
+
 start_odoo() {
     step "Iniciando Odoo"
     run_command "Reiniciando servicio ${SERVICE_NAME}..." "$SYSTEMCTL_COMMAND" restart "$SERVICE_NAME"
