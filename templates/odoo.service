@@ -1,0 +1,19 @@
+[Unit]
+Description=Odoo ERP
+Requires=postgresql.service
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User={{RUN_AS_USER}}
+Group={{RUN_AS_GROUP}}
+WorkingDirectory={{INSTALL_DIR}}
+ExecStart={{VENV_DIR}}/bin/python {{ODOO_BIN}} -c {{ODOO_CONF}}
+Restart=always
+RestartSec=5
+SyslogIdentifier={{SERVICE_NAME}}
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
