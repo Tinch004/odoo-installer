@@ -228,3 +228,37 @@ odoo_fix_permissions() {
     run_privileged "$CHMOD_COMMAND" 0644 "$ODOO_LOG_FILE"
     ok "Permisos corregidos."
 }
+
+initialize_odoo_database() {
+    step "Inicializando base de datos"
+
+    if odoo_database_initialized; then
+        ok "La base de datos ya esta inicializada."
+        return
+    fi
+
+    run_command "Ejecutando -i base (puede tardar varios minutos)..." \
+        "$SUDO_COMMAND" -u "$RUN_AS_USER" \
+        "$PYTHON_BIN" "$ODOO_BIN" \
+        -c "$ODOO_CONF" \
+        -d "$POSTGRES_DB" \
+        -i base \
+        --without-demo=all \
+        --stop-after-init
+
+    if ! odoo_database_initialized; then
+        error "La base de datos no quedo inicializada correctamente."
+        error "Revisa los logs: $ODOO_LOG_FILE"
+        exit 1
+    fi
+
+    ok "Base de datos inicializada correctamente."
+}
+
+odoo_database_initialized() {
+    PGPASSWORD="$(get_db_password)" "$PSQL_COMMAND" \
+        -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+        "SELECT 1 FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_name = 'ir_module_module'" 2>/dev/null |
+        "$GREP_COMMAND" -qx '1'
+}

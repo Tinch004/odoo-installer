@@ -21,7 +21,7 @@ source "$ROOT_DIR/lib/service.sh"
 # shellcheck source=lib/cli.sh
 source "$ROOT_DIR/lib/cli.sh"
 
-INSTALL_STEP_TOTAL=13
+INSTALL_STEP_TOTAL=14
 
 banner
 check_root
@@ -33,6 +33,7 @@ install_dependencies
 install_odoo
 configure_postgres
 generate_config
+initialize_odoo_database
 create_service
 install_cli
 start_odoo
