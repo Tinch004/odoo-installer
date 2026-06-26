@@ -5,6 +5,8 @@ set -Eeuo pipefail
 configure_postgres() {
     step "Configurando PostgreSQL"
 
+    POSTGRES_PASSWORD="$(get_db_password)"
+
     run_command "Iniciando PostgreSQL..." start_postgres_service
     create_postgres_user
     create_postgres_database
@@ -15,26 +17,20 @@ configure_postgres() {
 }
 
 create_postgres_user() {
-    local db_password
-    db_password="$(get_db_password)"
-
     if postgres_role_exists; then
         run_command "Actualizando credenciales del usuario PostgreSQL ${POSTGRES_USER}..." \
             "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -c \
-            "ALTER ROLE ${POSTGRES_USER} LOGIN PASSWORD '${db_password}' CREATEDB;"
+            "ALTER ROLE ${POSTGRES_USER} LOGIN PASSWORD '${POSTGRES_PASSWORD}' CREATEDB;"
         return
     fi
 
     run_command "Creando usuario PostgreSQL ${POSTGRES_USER}..." \
         "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -c \
-        "CREATE ROLE ${POSTGRES_USER} LOGIN PASSWORD '${db_password}' CREATEDB;"
+        "CREATE ROLE ${POSTGRES_USER} LOGIN PASSWORD '${POSTGRES_PASSWORD}' CREATEDB;"
 }
 
 validate_postgres_connection() {
-    local db_password
-    db_password="$(get_db_password)"
-
-    if PGPASSWORD="$db_password" "$PSQL_COMMAND" \
+    if PGPASSWORD="$POSTGRES_PASSWORD" "$PSQL_COMMAND" \
         -h localhost -U "$POSTGRES_USER" -d postgres \
         -c "SELECT 1;" >/dev/null 2>&1; then
         ok "Conexion a PostgreSQL validada."
