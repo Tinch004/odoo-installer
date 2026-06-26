@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#bg)"/>
+  <g transform="translate(48, 48)">
+    <!-- Odoo O letter -->
+    <circle cx="80" cy="80" r="60" fill="none" stroke="white" stroke-width="8"/>
+    <!-- Inner O -->
+    <circle cx="80" cy="80" r="35" fill="white" opacity="0.2"/>
+    <!-- Database icon -->
+    <ellipse cx="80" cy="60" rx="25" ry="8" fill="none" stroke="white" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="80" cy="80" rx="25" ry="8" fill="none" stroke="white" stroke-width="3" opacity="0.6"/>
+    <ellipse cx="80" cy="100" rx="25" ry="8" fill="none" stroke="white" stroke-width="3" opacity="0.6"/>
+    <!-- Plug/socket -->
+    <rect x="60" y="110" width="40" height="12" rx="3" fill="white" opacity="0.4"/>
+  </g>
+</svg>
