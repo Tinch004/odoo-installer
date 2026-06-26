@@ -242,7 +242,6 @@ run_system_check() {
     SYSTEM_CHECK_FAILED=0
     SYSTEM_CHECK_WARNINGS=0
 
-    check_ubuntu_version
     check_architecture
     check_memory
     check_free_space
@@ -265,24 +264,6 @@ run_system_check() {
     ok "Chequeo del sistema completado."
 }
 
-check_ubuntu_version() {
-    local version_id=""
-    local pretty_name="Ubuntu"
-
-    if [[ -r /etc/os-release ]]; then
-        # shellcheck source=/dev/null
-        source /etc/os-release
-        version_id="${VERSION_ID:-}"
-        pretty_name="${PRETTY_NAME:-Ubuntu ${version_id}}"
-    fi
-
-    if is_supported_ubuntu; then
-        check_ok "$pretty_name"
-        return
-    fi
-
-    check_fail "Ubuntu soportado" "Se requiere Ubuntu 22.04 o 24.04."
-}
 
 check_architecture() {
     local architecture
@@ -461,24 +442,6 @@ check_fail() {
     printf '%b\n' "${RED}[FAIL]${RESET} ${label} - ${message}"
 }
 
-is_supported_ubuntu() {
-    local version_id=""
-
-    if [[ -r /etc/os-release ]]; then
-        # shellcheck source=/dev/null
-        source /etc/os-release
-        version_id="${VERSION_ID:-}"
-    fi
-
-    [[ "${ID:-}" == "ubuntu" && ( "$version_id" == "22.04" || "$version_id" == "24.04" ) ]]
-}
-
-ensure_supported_ubuntu() {
-    if ! is_supported_ubuntu; then
-        error "Este instalador soporta Ubuntu 22.04 y Ubuntu 24.04."
-        exit 1
-    fi
-}
 
 select_version() {
     local selected_version

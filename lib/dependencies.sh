@@ -49,7 +49,6 @@ APT_FULL_EXTRA_PACKAGES=(
 
 install_dependencies() {
     step "Instalando dependencias"
-    ensure_supported_ubuntu
     require_command "$APT_GET_COMMAND"
 
     export DEBIAN_FRONTEND=noninteractive
