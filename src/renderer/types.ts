@@ -62,6 +62,28 @@ export interface DoctorCheck {
   details?: string
 }
 
+export interface DetectedOdoo {
+  version: string
+  path: string
+  hasConfig: boolean
+  hasOdooBin: boolean
+  hasVenv: boolean
+  hasService: boolean
+  status: 'complete' | 'partial' | 'cloned'
+  pythonVersion: string
+  port: number | null
+}
+
+export interface ConnectionInfo {
+  host: string
+  port: number
+  db: string
+  username: string
+  password: string
+  instanceName: string
+  logFile: string
+}
+
 export interface ActionResult {
   success: boolean
   message: string
@@ -80,6 +102,7 @@ declare global {
       enableService: (name: string) => Promise<ActionResult>
       disableService: (name: string) => Promise<ActionResult>
       getServiceLogs: (name: string) => Promise<string>
+      getConnectionInfo: () => Promise<ConnectionInfo | null>
       connect: (config: any) => Promise<boolean>
       listModules: (db: string) => Promise<ModuleInfo[]>
       installModule: (db: string, name: string) => Promise<boolean>
@@ -116,6 +139,26 @@ declare global {
       tunnelUrl: () => Promise<ActionResult>
       doctorCheck: (instancePath: string, port?: number) => Promise<DoctorCheck[]>
       doctorFix: (instancePath: string, port?: number) => Promise<ActionResult>
+
+      // Odoo Detector
+      detectAllOdoo: () => Promise<DetectedOdoo[]>
+      setupOdoo: (instancePath: string) => Promise<ActionResult>
+
+      // Python
+      getPythonInfo: () => Promise<{ installed: boolean; path: string; version: string }>
+
+      // PostgreSQL
+      getPGStatus: () => Promise<{ installed: boolean; version: string | null; running: boolean; path: string | null }>
+      ensurePG: () => Promise<ActionResult>
+      resetPGCache: () => Promise<void>
+
+      // Shell
+      openBrowser: (url: string) => Promise<void>
+
+      // Projects Directory
+      getProjectsDir: () => Promise<string>
+      selectProjectsDir: () => Promise<string | null>
+      setProjectsDir: (dir: string) => Promise<boolean>
     }
   }
 }

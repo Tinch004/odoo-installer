@@ -29,6 +29,10 @@ export default function Services() {
     setActionResult({ type: result.success ? 'success' : 'error', message: result.message })
     setTimeout(() => setActionResult(null), 3000)
     load()
+    if (result.success && action === 'start') {
+      const portMatch = result.message.match(/port (\d+)/)
+      if (portMatch) API.openBrowser(`http://localhost:${portMatch[1]}`)
+    }
   }
 
   const viewLogs = async (name: string) => {

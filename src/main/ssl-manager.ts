@@ -1,7 +1,11 @@
 import { execSync } from 'child_process'
+import { isLinux } from './platform'
 
 export class SSLManager {
   install(domain: string): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'SSL/Certbot solo está disponible en Linux. Usa WSL o una máquina virtual Linux.' }
+    }
     try {
       const hasCertbot = execSync('which certbot 2>/dev/null || true', { encoding: 'utf8', timeout: 3000 }).trim()
       if (!hasCertbot) {
@@ -22,6 +26,9 @@ export class SSLManager {
   }
 
   renew(): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'SSL/Certbot solo está disponible en Linux' }
+    }
     try {
       execSync('certbot renew', { timeout: 60000 })
       return { success: true, message: 'Certificados renovados' }
@@ -31,6 +38,9 @@ export class SSLManager {
   }
 
   status(): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'SSL/Certbot no disponible en Windows' }
+    }
     try {
       const out = execSync('certbot certificates 2>&1', { encoding: 'utf8', timeout: 10000 })
       return { success: true, message: out }
@@ -40,6 +50,7 @@ export class SSLManager {
   }
 
   isConfigured(): boolean {
+    if (!isLinux()) return false
     try {
       const out = execSync('certbot certificates 2>&1', { encoding: 'utf8', timeout: 5000 })
       return out.includes('Certificate Name:')

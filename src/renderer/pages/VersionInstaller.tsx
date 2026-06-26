@@ -9,6 +9,7 @@ export default function VersionInstaller() {
   const [localVersions, setLocalVersions] = useState<Array<{ version: string; path: string; hasService: boolean }>>([])
   const [installing, setInstalling] = useState<string | null>(null)
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [projectsDir, setProjectsDir] = useState('')
 
   const showMsg = (type: 'success' | 'error', text: string) => {
     setActionMsg({ type, text })
@@ -18,6 +19,7 @@ export default function VersionInstaller() {
   useEffect(() => {
     API.listAvailableVersions().then(setAvailable)
     API.detectLocalVersions().then(setLocalVersions)
+    API.getProjectsDir().then(setProjectsDir)
   }, [])
 
   const doInstall = async (version: string) => {
@@ -81,6 +83,15 @@ export default function VersionInstaller() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Install directory info */}
+      {projectsDir && (
+        <div className="glass rounded-xl p-3 mb-4 flex items-center gap-2 text-xs text-gray-400">
+          <Layers size={14} className="text-indigo-400 shrink-0" />
+          Instances will be installed in: <span className="text-gray-300 font-mono">{projectsDir}</span>
+          <span className="text-gray-600"> (change in Settings)</span>
         </div>
       )}
 

@@ -1,15 +1,20 @@
 import { execSync } from 'child_process'
 import { existsSync, writeFileSync, unlinkSync, mkdirSync } from 'fs'
+import { isLinux } from './platform'
 
 const NGINX_AVAILABLE_DIR = '/etc/nginx/sites-available'
 const NGINX_ENABLED_DIR = '/etc/nginx/sites-enabled'
 
 export class NginxManager {
   isConfigured(name: string = 'odoo'): boolean {
+    if (!isLinux()) return false
     return existsSync(`${NGINX_AVAILABLE_DIR}/${name}`) && existsSync(`${NGINX_ENABLED_DIR}/${name}`)
   }
 
   install(domain: string, port: number, name: string = 'odoo'): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'Nginx solo está disponible en Linux. Usa WSL o una máquina virtual Linux.' }
+    }
     try {
       const siteConfig = `server {
     listen 80;
@@ -46,6 +51,9 @@ export class NginxManager {
   }
 
   uninstall(name: string = 'odoo'): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'Nginx solo está disponible en Linux' }
+    }
     try {
       if (existsSync(`${NGINX_ENABLED_DIR}/${name}`)) {
         unlinkSync(`${NGINX_ENABLED_DIR}/${name}`)
@@ -61,6 +69,9 @@ export class NginxManager {
   }
 
   restart(): { success: boolean; message: string } {
+    if (!isLinux()) {
+      return { success: false, message: 'Nginx solo está disponible en Linux' }
+    }
     try {
       execSync('systemctl restart nginx', { timeout: 10000 })
       return { success: true, message: 'Nginx reiniciado' }
@@ -70,6 +81,9 @@ export class NginxManager {
   }
 
   status(): { active: boolean; message: string } {
+    if (!isLinux()) {
+      return { active: false, message: 'No disponible en Windows' }
+    }
     try {
       const out = execSync('systemctl is-active nginx', { encoding: 'utf8', timeout: 3000 }).trim()
       return { active: out === 'active', message: out }

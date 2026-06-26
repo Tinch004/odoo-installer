@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import path from 'path'
 import { ServiceManager } from './service-manager'
 import { OdooRPC } from './odoo-rpc'
@@ -9,6 +9,10 @@ import { SSLManager } from './ssl-manager'
 import { BackupManager } from './backup-manager'
 import { TunnelManager } from './tunnel-manager'
 import { SystemDoctor } from './system-doctor'
+import { getProjectsDir, setProjectsDir } from './config'
+import { detectAllOdoo, setupInstance } from './odo-detector'
+import { getPythonInfo } from './platform'
+import { getPGStatus, ensurePostgreSQL, resetPGCache } from './postgres'
 
 let mainWindow: BrowserWindow | null = null
 const serviceManager = new ServiceManager()
@@ -71,6 +75,7 @@ ipcMain.handle('services:restart', (_, name) => serviceManager.control(name, 're
 ipcMain.handle('services:enable', (_, name) => serviceManager.control(name, 'enable'))
 ipcMain.handle('services:disable', (_, name) => serviceManager.control(name, 'disable'))
 ipcMain.handle('services:logs', (_, name) => serviceManager.getLogs(name))
+ipcMain.handle('services:connection-info', () => serviceManager.getConnectionInfo())
 
 // Odoo RPC
 ipcMain.handle('odoo:connect', (_, config) => odooRPC.connect(config))
@@ -131,3 +136,37 @@ ipcMain.handle('tunnel:url', () => tunnelManager.getUrl())
 // System Doctor
 ipcMain.handle('doctor:check', (_, instancePath, port) => systemDoctor.check(instancePath, port))
 ipcMain.handle('doctor:fix', (_, instancePath, port) => systemDoctor.fix(instancePath, port))
+
+// Odoo Detector
+ipcMain.handle('odoo:detect-all', () => detectAllOdoo())
+ipcMain.handle('odoo:setup', (_, instancePath) => setupInstance(instancePath))
+
+// Python info
+ipcMain.handle('python:info', () => getPythonInfo())
+
+// PostgreSQL
+ipcMain.handle('pg:status', () => getPGStatus())
+ipcMain.handle('pg:ensure', () => ensurePostgreSQL())
+ipcMain.handle('pg:reset-cache', () => resetPGCache())
+
+// Projects Directory
+ipcMain.handle('projects:get-dir', () => getProjectsDir())
+ipcMain.handle('projects:select-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow!, {
+    properties: ['openDirectory'],
+    title: 'Select Odoo projects directory',
+  })
+  if (result.canceled) return null
+  const dir = result.filePaths[0]
+  setProjectsDir(dir)
+  return dir
+})
+ipcMain.handle('projects:set-dir', (_, dir: string) => {
+  setProjectsDir(dir)
+  return true
+})
+
+// Shell
+ipcMain.handle('shell:open-url', (_, url: string) => {
+  shell.openExternal(url)
+})

@@ -1,5 +1,8 @@
 import { execSync } from 'child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
+import path from 'path'
+import { getPlatform, getProjectsDir, getOdooDir, getAddonsDir, getPythonCommand, getVenvPython, getPipCommand, quoteForShell, isWindows, isLinux, requireLinux, getServiceName } from './platform'
+import { ensurePostgreSQL } from './postgres'
 
 export interface OdooVersion {
   version: string
@@ -20,15 +23,15 @@ export class VersionInstaller {
 
   detectLocal(): Array<{ version: string; path: string; hasService: boolean }> {
     const results: Array<{ version: string; path: string; hasService: boolean }> = []
-    const projectDir = '/home/fran/proyectos'
+    const projectDir = getProjectsDir()
     const versions = ['odoo', 'odoo17', 'odoo16', 'odoo15', 'odoo14']
 
     for (const dir of versions) {
-      const fullPath = `${projectDir}/${dir}`
-      const configPath = `${fullPath}/odoo.conf`
+      const fullPath = path.join(projectDir, dir)
+      const configPath = path.join(fullPath, 'odoo.conf')
       if (existsSync(configPath)) {
         const version = dir === 'odoo' ? '18.0' : dir.replace('odoo', '') + '.0'
-        const hasService = this.checkService(dir)
+        const hasService = isLinux() ? this.checkService(dir) : false
         results.push({ version, path: fullPath, hasService })
       }
     }
@@ -38,44 +41,75 @@ export class VersionInstaller {
   async install(version: string): Promise<{ success: boolean; message: string }> {
     try {
       const branch = version
-      const dirName = `odoo${version.replace('.', '')}`
-      const targetDir = `/home/fran/proyectos/${dirName}`
+      const targetDir = getOdooDir(version)
 
       if (existsSync(targetDir)) {
         return { success: false, message: `Directory ${targetDir} already exists` }
       }
 
       // Clone Odoo
-      execSync(`git clone --branch ${branch} --depth 1 https://github.com/odoo/odoo.git ${targetDir}`, { timeout: 180000 })
+      execSync(`git clone --branch ${branch} --depth 1 https://github.com/odoo/odoo.git "${targetDir}"`, { timeout: 180000 })
+
+      // Ensure PostgreSQL is available
+      const pgReq = ensurePostgreSQL()
+      if (!pgReq.success) return pgReq
+      const pgHost = pgReq.host || '127.0.0.1'
+      const pgPort = pgReq.port || 5432
 
       // Determine Python version
-      const pythonVer = this.getPythonForVersion(version)
-      
-      // Create venv
-      execSync(`${pythonVer} -m venv ${targetDir}/venv`, { timeout: 30000 })
+      const pythonVer = getPythonCommand(version)
+
+      // Create venv (fallback to virtualenv if venv module missing)
+      const venvDir = path.join(targetDir, 'venv')
+      try {
+        execSync(`${quoteForShell(pythonVer)} -m venv "${venvDir}"`, { timeout: 60000 })
+      } catch {
+        execSync(`${quoteForShell(pythonVer)} -m pip install virtualenv`, { timeout: 60000 })
+        execSync(`${quoteForShell(pythonVer)} -m virtualenv "${venvDir}"`, { timeout: 120000 })
+      }
 
       // Install dependencies
-      execSync(`source ${targetDir}/venv/bin/activate && pip install --upgrade pip wheel setuptools && pip install -r ${targetDir}/requirements.txt`, { timeout: 180000 })
+      const venvPython = getVenvPython(venvDir)
+      const reqFile = path.join(targetDir, 'requirements.txt')
 
-      // Install system deps
-      execSync('apt-get install -y libpq-dev libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libssl-dev libjpeg-dev libz-dev libffi-dev 2>/dev/null || true', { timeout: 60000 })
+      execSync(
+        `${quoteForShell(venvPython)} -m pip install --upgrade pip wheel setuptools`,
+        { timeout: 120000 }
+      )
+      if (existsSync(reqFile)) {
+        execSync(
+          `${quoteForShell(venvPython)} -m pip install -r "${reqFile}"`,
+          { timeout: 180000 }
+        )
+      }
+
+      // Install system deps (Linux only)
+      if (isLinux()) {
+        execSync('apt-get install -y libpq-dev libxml2-dev libxslt1-dev libldap2-dev libsasl2-dev libssl-dev libjpeg-dev libz-dev libffi-dev 2>/dev/null || true', { timeout: 60000 })
+      }
 
       // Create config file
+      const logfileName = `odoo${version.replace('.', '')}-server.log`
+      const logDir = isLinux() ? '/var/log/odoo' : path.join(targetDir, 'log')
+      if (!isLinux()) mkdirSync(logDir, { recursive: true })
+
       const config = `[options]
-addons_path = ${targetDir}/addons,${targetDir}/odoo/addons,${targetDir}/sources
-db_host = False
-db_port = False
+addons_path = ${path.join(targetDir, 'addons')},${path.join(targetDir, 'odoo', 'addons')},${path.join(targetDir, 'sources')}
+db_host = ${pgHost}
+db_port = ${pgPort}
 db_user = odoo
 db_password = False
-logfile = /var/log/odoo/${dirName}-server.log
+logfile = ${path.join(logDir, logfileName)}
 admin_passwd = admin
-http_port = 80${version.replace('.', '')}
+http_port = 80${version.split('.')[0]}
 `
-      mkdirSync(`${targetDir}/sources`, { recursive: true })
-      writeFileSync(`${targetDir}/odoo.conf`, config)
+      mkdirSync(path.join(targetDir, 'sources'), { recursive: true })
+      writeFileSync(path.join(targetDir, 'odoo.conf'), config)
 
-      // Create systemd service
-      const service = `[Unit]
+      if (isLinux()) {
+        // Create systemd service
+        const serviceName = `odoo${version.replace('.', '')}`
+        const service = `[Unit]
 Description=Odoo ${version} Open Source ERP and CRM
 After=network.target
 
@@ -83,34 +117,33 @@ After=network.target
 Type=simple
 User=odoo
 Group=odoo
-ExecStart=${targetDir}/venv/bin/python ${targetDir}/odoo-bin --config ${targetDir}/odoo.conf --logfile /var/log/odoo/${dirName}-server.log
+ExecStart=${getVenvPython(path.join(targetDir, 'venv'))} ${path.join(targetDir, 'odoo-bin')} --config ${path.join(targetDir, 'odoo.conf')} --logfile ${path.join(logDir, logfileName)}
 KillMode=mixed
 
 [Install]
 WantedBy=multi-user.target
 `
-      writeFileSync(`/etc/systemd/system/${dirName}.service`, service)
+        writeFileSync(`/etc/systemd/system/${serviceName}.service`, service)
 
-      // Create log directory and set permissions
-      execSync(`pkexec bash -c 'mkdir -p /var/log/odoo && touch /var/log/odoo/${dirName}-server.log && chown -R odoo:odoo /var/log/odoo && chmod o+x /home/fran && chown -R odoo:odoo ${targetDir} && chmod -R o+rX ${targetDir} && systemctl daemon-reload'`, { timeout: 30000 })
+        // Create log directory and set permissions
+        execSync(
+          `pkexec bash -c 'mkdir -p /var/log/odoo && touch /var/log/odoo/${logfileName} && chown -R odoo:odoo /var/log/odoo && chmod o+x ${getProjectsDir()} && chown -R odoo:odoo ${targetDir} && chmod -R o+rX ${targetDir} && systemctl daemon-reload'`,
+          { timeout: 30000 }
+        )
 
-      // Create database
-      execSync(`pkexec bash -c 'su - postgres -c "createdb -O odoo ${dirName}"'`, { timeout: 10000 })
+        // Create database
+        execSync(
+          `pkexec bash -c 'su - postgres -c "createdb -O odoo ${serviceName}"'`,
+          { timeout: 10000 }
+        )
 
-      return { success: true, message: `Odoo ${version} installed at ${targetDir}. Run: systemctl start ${dirName}` }
+        return { success: true, message: `Odoo ${version} installed at ${targetDir}. Run: systemctl start ${serviceName}` }
+      }
+
+      return { success: true, message: `Odoo ${version} installed at ${targetDir}` }
     } catch (e: any) {
       return { success: false, message: e.message || 'Installation failed' }
     }
-  }
-
-  private getPythonForVersion(version: string): string {
-    const v = parseFloat(version)
-    if (v >= 18) return 'python3.12'
-    if (v >= 17) return 'python3.11'
-    if (v >= 16) return 'python3.10'
-    if (v >= 15) return 'python3.9'
-    if (v >= 14) return 'python3.8'
-    return 'python3.10'
   }
 
   private checkService(name: string): boolean {

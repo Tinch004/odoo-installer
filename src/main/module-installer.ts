@@ -1,7 +1,8 @@
 import { execSync } from 'child_process'
-import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, readdirSync, cpSync, writeFileSync, readFileSync, rmSync } from 'fs'
 import { join, basename } from 'path'
 import { OdooRPC } from './odoo-rpc'
+import { getProjectsDir, getOdooDir, getAddonsDir, isLinux, isWindows } from './platform'
 
 export interface OCAModule {
   name: string
@@ -20,48 +21,53 @@ export class ModuleInstaller {
 
   async installLocal(db: string, sourcePath: string): Promise<{ success: boolean; message: string }> {
     try {
-      const targetDir = '/home/fran/proyectos/odoo17/sources'
+      const targetDir = getAddonsDir('17.0')
       if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true })
 
       const moduleName = basename(sourcePath)
       const targetPath = join(targetDir, moduleName)
 
-      // Check if it's a zip file or directory
       if (sourcePath.endsWith('.zip') || sourcePath.endsWith('.tgz') || sourcePath.endsWith('.tar.gz')) {
-        execSync(`mkdir -p "${targetPath}" && tar -xzf "${sourcePath}" -C "${targetPath}" --strip-components=1 2>/dev/null || unzip -o "${sourcePath}" -d "${targetPath}" 2>/dev/null`, { timeout: 30000 })
-      } else {
-        // It's a directory, copy contents
         if (existsSync(targetPath)) rmSync(targetPath, { recursive: true })
-        execSync(`cp -r "${sourcePath}" "${targetPath}"`, { timeout: 30000 })
+        mkdirSync(targetPath, { recursive: true })
+        if (sourcePath.endsWith('.zip')) {
+          execSync(
+            `tar -xzf "${sourcePath}" -C "${targetPath}" --strip-components=1 2>/dev/null || (powershell -Command "Expand-Archive -Path '${sourcePath}' -DestinationPath '${targetPath}' -Force" 2>$null) || unzip -o "${sourcePath}" -d "${targetPath}" 2>/dev/null`,
+            { timeout: 30000 }
+          )
+        } else {
+          execSync(`tar -xzf "${sourcePath}" -C "${targetPath}" --strip-components=1`, { timeout: 30000 })
+        }
+      } else {
+        if (existsSync(targetPath)) rmSync(targetPath, { recursive: true })
+        cpSync(sourcePath, targetPath, { recursive: true })
       }
 
-      // Verify manifest exists
       const manifestPath = join(targetPath, '__manifest__.py')
       if (!existsSync(manifestPath)) {
-        // Check subdirectories
         const subdirs = readdirSync(targetPath, { withFileTypes: true }).filter(d => d.isDirectory())
         for (const sub of subdirs) {
           const subManifest = join(targetPath, sub.name, '__manifest__.py')
           if (existsSync(subManifest)) {
-            // Move contents up
-            execSync(`cp -r "${targetPath}/${sub.name}/"* "${targetPath}/"`, { timeout: 10000 })
+            const subEntries = readdirSync(join(targetPath, sub.name))
+            for (const entry of subEntries) {
+              cpSync(join(targetPath, sub.name, entry), join(targetPath, entry), { recursive: true })
+            }
             break
           }
         }
       }
 
-      // Install via Odoo
       if (!existsSync(join(targetPath, '__manifest__.py'))) {
         return { success: false, message: `Invalid module: no __manifest__.py found in ${moduleName}` }
       }
 
-      // Update addons path in config and restart
       this.updateAddonsPath(targetDir)
-      
-      // Restart service to pick up new module
-      execSync('pkexec bash -c \'systemctl restart odoo17\'', { timeout: 15000 })
 
-      // Then install module
+      if (isLinux()) {
+        execSync('pkexec bash -c \'systemctl restart odoo17\'', { timeout: 15000 })
+      }
+
       const result = await this.odooRPC.installModule(db, moduleName)
       if (result) {
         return { success: true, message: `Module ${moduleName} installed successfully` }
@@ -75,7 +81,6 @@ export class ModuleInstaller {
   async searchOCA(query: string, odooVersion: string = '17.0'): Promise<OCAModule[]> {
     const results: OCAModule[] = []
     try {
-      // Search OCA GitHub org
       const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(query)}+org:OCA+language:python&sort=stars&per_page=50`
       const res = await fetch(url, {
         headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'OdooManager' },
@@ -102,7 +107,6 @@ export class ModuleInstaller {
       }
     } catch {}
 
-    // Fallback: return curated OCA repos
     if (results.length === 0) {
       return this.getCuratedRepos(query, odooVersion)
     }
@@ -124,36 +128,38 @@ export class ModuleInstaller {
 
   async installFromStore(db: string, repoUrl: string, odooVersion: string): Promise<{ success: boolean; message: string }> {
     try {
-      const targetDir = '/home/fran/proyectos/odoo17/sources'
+      const targetDir = getAddonsDir('17.0')
       if (!existsSync(targetDir)) mkdirSync(targetDir, { recursive: true })
 
       const repoName = basename(repoUrl.replace('.git', ''))
-      const repoPath = join('/tmp/odoo-modules', repoName)
+      const tmpDir = isWindows()
+        ? join(process.env.TEMP || 'C:\\Temp', 'odoo-modules')
+        : '/tmp/odoo-modules'
+      const repoPath = join(tmpDir, repoName)
 
-      // Clone repo
       if (existsSync(repoPath)) rmSync(repoPath, { recursive: true })
-      execSync(`mkdir -p /tmp/odoo-modules && git clone --depth 1 --branch ${odooVersion} ${repoUrl} ${repoPath} 2>/dev/null || git clone --depth 1 ${repoUrl} ${repoPath}`, { timeout: 60000 })
+      mkdirSync(tmpDir, { recursive: true })
+      execSync(`git clone --depth 1 --branch ${odooVersion} "${repoUrl}" "${repoPath}" 2>/dev/null || git clone --depth 1 "${repoUrl}" "${repoPath}"`, { timeout: 60000 })
 
-      // Copy all module directories to sources
       const entries = readdirSync(repoPath, { withFileTypes: true })
       let installed = 0
       for (const entry of entries) {
         if (entry.isDirectory() && existsSync(join(repoPath, entry.name, '__manifest__.py'))) {
           const target = join(targetDir, entry.name)
           if (existsSync(target)) rmSync(target, { recursive: true })
-          execSync(`cp -r "${join(repoPath, entry.name)}" "${targetDir}/"`, { timeout: 10000 })
+          cpSync(join(repoPath, entry.name), join(targetDir, entry.name), { recursive: true })
           installed++
         }
       }
 
-      // Clean up
       rmSync(repoPath, { recursive: true })
 
       if (installed === 0) return { success: false, message: 'No valid modules found in repository' }
 
-      // Update addons path and restart
       this.updateAddonsPath(targetDir)
-      execSync('pkexec bash -c \'systemctl restart odoo17\'', { timeout: 15000 })
+      if (isLinux()) {
+        execSync('pkexec bash -c \'systemctl restart odoo17\'', { timeout: 15000 })
+      }
 
       return { success: true, message: `${installed} module(s) downloaded. Use Module Manager to install them.` }
     } catch (e: any) {
@@ -162,7 +168,7 @@ export class ModuleInstaller {
   }
 
   private updateAddonsPath(sourcesDir: string): void {
-    const configPath = '/home/fran/proyectos/odoo17/odoo.conf'
+    const configPath = join(getOdooDir('17.0'), 'odoo.conf')
     if (!existsSync(configPath)) return
     try {
       let raw = readFileSync(configPath, 'utf8')

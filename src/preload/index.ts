@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   enableService: (name: string) => ipcRenderer.invoke('services:enable', name),
   disableService: (name: string) => ipcRenderer.invoke('services:disable', name),
   getServiceLogs: (name: string) => ipcRenderer.invoke('services:logs', name),
+  getConnectionInfo: () => ipcRenderer.invoke('services:connection-info'),
 
   // Odoo RPC
   connect: (config: any) => ipcRenderer.invoke('odoo:connect', config),
@@ -68,4 +69,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Doctor
   doctorCheck: (instancePath: string, port?: number) => ipcRenderer.invoke('doctor:check', instancePath, port),
   doctorFix: (instancePath: string, port?: number) => ipcRenderer.invoke('doctor:fix', instancePath, port),
+
+  // Odoo Detector
+  detectAllOdoo: () => ipcRenderer.invoke('odoo:detect-all'),
+  setupOdoo: (instancePath: string) => ipcRenderer.invoke('odoo:setup', instancePath),
+
+  // Python
+  getPythonInfo: () => ipcRenderer.invoke('python:info'),
+
+  // PostgreSQL
+  getPGStatus: () => ipcRenderer.invoke('pg:status'),
+  ensurePG: () => ipcRenderer.invoke('pg:ensure'),
+  resetPGCache: () => ipcRenderer.invoke('pg:reset-cache'),
+
+  // Shell
+  openBrowser: (url: string) => ipcRenderer.invoke('shell:open-url', url),
+
+  // Projects Directory
+  getProjectsDir: () => ipcRenderer.invoke('projects:get-dir'),
+  selectProjectsDir: () => ipcRenderer.invoke('projects:select-dir'),
+  setProjectsDir: (dir: string) => ipcRenderer.invoke('projects:set-dir', dir),
 })

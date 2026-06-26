@@ -1,5 +1,7 @@
 import { execSync } from 'child_process'
 import { existsSync, readFileSync, readdirSync } from 'fs'
+import path from 'path'
+import { getProjectsDir, getOdooDir, isWindows } from './platform'
 
 export interface ModuleInfo {
   id: number
@@ -70,17 +72,15 @@ export class OdooRPC {
     return this.call('/jsonrpc', { service, method, args })
   }
 
-  // Alternative: use odoo-bin command line
   private execOdoo(odbBin: string, args: string): string {
     try {
-      return execSync(`${odbBin} ${args} 2>&1`, { encoding: 'utf8', timeout: 120000 })
+      return execSync(`"${odbBin}" ${args} 2>&1`, { encoding: 'utf8', timeout: 120000 })
     } catch (e: any) {
       return e.stdout || e.message || 'Command failed'
     }
   }
 
   async listModules(db: string): Promise<ModuleInfo[]> {
-    // Try RPC first
     try {
       const ids: number[] = await this.authCall('ir.module.module', 'search', [[]])
       const modules: any[] = await this.authCall('ir.module.module', 'read', [ids])
@@ -100,7 +100,6 @@ export class OdooRPC {
         auto_install: m.auto_install || false,
       }))
     } catch {
-      // Fallback: scan filesystem
       return this.scanLocalModules()
     }
   }
@@ -110,7 +109,6 @@ export class OdooRPC {
       await this.authCall('ir.module.module', 'button_immediate_install', [[[['name', '=', moduleName]]]])
       return true
     } catch {
-      // Fallback to command line
       try {
         const odooBin = this.findOdooBin()
         if (odooBin) {
@@ -156,9 +154,10 @@ export class OdooRPC {
   }
 
   private findOdooBin(): string | null {
+    const projectDir = getProjectsDir()
     const candidates = [
-      '/home/fran/proyectos/odoo17/odoo-bin',
-      '/home/fran/proyectos/odoo16/odoo-bin',
+      path.join(projectDir, 'odoo17', 'odoo-bin'),
+      path.join(projectDir, 'odoo16', 'odoo-bin'),
       '/usr/bin/odoo',
     ]
     for (const c of candidates) {
@@ -169,11 +168,12 @@ export class OdooRPC {
 
   private scanLocalModules(): ModuleInfo[] {
     const modules: ModuleInfo[] = []
+    const projectDir = getProjectsDir()
     const addonsDirs = [
-      '/home/fran/proyectos/odoo17/addons',
-      '/home/fran/proyectos/odoo17/odoo/addons',
-      '/home/fran/proyectos/odoo17/sources',
-      '/home/fran/proyectos/pos_mercadopago_point',
+      path.join(projectDir, 'odoo17', 'addons'),
+      path.join(projectDir, 'odoo17', 'odoo', 'addons'),
+      path.join(projectDir, 'odoo17', 'sources'),
+      path.join(projectDir, 'pos_mercadopago_point'),
     ]
     for (const dir of addonsDirs) {
       if (!existsSync(dir)) continue
@@ -181,7 +181,7 @@ export class OdooRPC {
         const entries = readdirSync(dir, { withFileTypes: true })
         for (const entry of entries) {
           if (!entry.isDirectory()) continue
-          const manifestPath = `${dir}/${entry.name}/__manifest__.py`
+          const manifestPath = path.join(dir, entry.name, '__manifest__.py')
           if (!existsSync(manifestPath)) continue
           try {
             const raw = readFileSync(manifestPath, 'utf8')
