@@ -8,20 +8,42 @@ configure_postgres() {
     run_command "Iniciando PostgreSQL..." start_postgres_service
     create_postgres_user
     create_postgres_database
-    configure_postgres_local_access
     run_command "Recargando PostgreSQL..." reload_postgres_service
+    run_command "Validando conexion a PostgreSQL..." validate_postgres_connection
 
     ok "PostgreSQL configurado correctamente."
 }
 
 create_postgres_user() {
+    local db_password
+    db_password="$(get_db_password)"
+
     if postgres_role_exists; then
-        ok "El usuario PostgreSQL ${POSTGRES_USER} ya existe."
+        run_command "Actualizando credenciales del usuario PostgreSQL ${POSTGRES_USER}..." \
+            "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -c \
+            "ALTER ROLE ${POSTGRES_USER} LOGIN PASSWORD '${db_password}' CREATEDB;"
         return
     fi
 
     run_command "Creando usuario PostgreSQL ${POSTGRES_USER}..." \
-        "$RUNUSER_COMMAND" -u postgres -- "$CREATEUSER_COMMAND" "$POSTGRES_USER"
+        "$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -c \
+        "CREATE ROLE ${POSTGRES_USER} LOGIN PASSWORD '${db_password}' CREATEDB;"
+}
+
+validate_postgres_connection() {
+    local db_password
+    db_password="$(get_db_password)"
+
+    if PGPASSWORD="$db_password" "$PSQL_COMMAND" \
+        -h localhost -U "$POSTGRES_USER" -d postgres \
+        -c "SELECT 1;" >/dev/null 2>&1; then
+        ok "Conexion a PostgreSQL validada."
+        return
+    fi
+
+    error "No se pudo conectar a PostgreSQL como ${POSTGRES_USER} en localhost."
+    error "Verifica que PostgreSQL acepte conexiones TCP en 127.0.0.1 (pg_hba.conf: host all odoo 127.0.0.1/32 scram-sha-256)."
+    exit 1
 }
 
 create_postgres_database() {
@@ -46,36 +68,3 @@ postgres_database_exists() {
         "$GREP_COMMAND" -qx '1'
 }
 
-configure_postgres_local_access() {
-    local hba_file
-    local temp_file
-
-    hba_file="$("$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc 'SHOW hba_file;' 2>/dev/null | "$TR_COMMAND" -d '[:space:]' || true)"
-
-    if [[ -z "$hba_file" || ! -f "$hba_file" ]]; then
-        hba_file="$("$FIND_COMMAND" /etc/postgresql -name "pg_hba.conf" 2>/dev/null | "$SORT_COMMAND" -V | "$TAIL_COMMAND" -n 1 || true)"
-    fi
-
-    if [[ -z "$hba_file" || ! -f "$hba_file" ]]; then
-        error "No se pudo detectar pg_hba.conf."
-        exit 1
-    fi
-
-    if "$GREP_COMMAND" -Eq "^local[[:space:]]+${POSTGRES_DB}[[:space:]]+${POSTGRES_USER}[[:space:]]+trust" "$hba_file"; then
-        ok "PostgreSQL ya permite acceso local para ${POSTGRES_USER}/${POSTGRES_DB}."
-        return
-    fi
-
-    info "Agregando regla local acotada en ${hba_file}..."
-    "$CP_COMMAND" "$hba_file" "${hba_file}.odoo-installer.bak.$("$DATE_COMMAND" +%Y%m%d%H%M%S)"
-    temp_file="$("$MK_TEMP_COMMAND")"
-
-    {
-        printf '# Managed by odoo-installer. Required for db_user=%s with db_password=False.\n' "$POSTGRES_USER"
-        printf 'local   %s   %s   trust\n' "$POSTGRES_DB" "$POSTGRES_USER"
-        "$CAT_COMMAND" "$hba_file"
-    } >"$temp_file"
-
-    "$INSTALL_COMMAND" -m 0640 -o postgres -g postgres "$temp_file" "$hba_file"
-    "$RM_COMMAND" -f "$temp_file"
-}

@@ -147,6 +147,7 @@ UNAME_COMMAND="uname"
 
 ODOO_VERSION=""
 ODOO_ADMIN_PASSWORD=""
+POSTGRES_PASSWORD=""
 INSTALL_PROFILE="minimal"
 CLONE_MODE="fast"
 CLONE_DEPTH="1"
@@ -161,6 +162,7 @@ generate_config() {
     step "Generando configuracion"
     create_log_files
     ODOO_ADMIN_PASSWORD="$(get_admin_password)"
+    POSTGRES_PASSWORD="$(get_db_password)"
     render_odoo_config
     ok "Configuracion generada en ${ODOO_CONF}."
 }
@@ -202,6 +204,37 @@ generate_admin_password() {
     printf '\n'
 }
 
+generate_db_password() {
+    "$OD_COMMAND" -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+    printf '\n'
+}
+
+get_db_password() {
+    if [[ -n "$POSTGRES_PASSWORD" ]]; then
+        printf '%s\n' "$POSTGRES_PASSWORD"
+        return
+    fi
+
+    if [[ -f "$ODOO_CONF" ]]; then
+        local existing_password=""
+        existing_password="$("$AWK_COMMAND" -F '=' '
+            /^[[:space:]]*db_password[[:space:]]*=/ {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+                print $2
+            }
+        ' "$ODOO_CONF" | "$TAIL_COMMAND" -n 1)"
+
+        if [[ -n "$existing_password" && "$existing_password" != "False" ]]; then
+            POSTGRES_PASSWORD="$existing_password"
+            printf '%s\n' "$POSTGRES_PASSWORD"
+            return
+        fi
+    fi
+
+    POSTGRES_PASSWORD="$(generate_db_password)"
+    printf '%s\n' "$POSTGRES_PASSWORD"
+}
+
 render_odoo_config() {
     local addons_path
     local temp_file
@@ -215,6 +248,7 @@ render_odoo_config() {
         -e "s|{{ODOO_LOG_FILE}}|${ODOO_LOG_FILE}|g" \
         -e "s|{{POSTGRES_USER}}|${POSTGRES_USER}|g" \
         -e "s|{{ADMIN_PASSWORD}}|${ODOO_ADMIN_PASSWORD}|g" \
+        -e "s|{{DB_PASSWORD}}|${POSTGRES_PASSWORD}|g" \
         -e "s|{{POSTGRES_DB}}|${POSTGRES_DB}|g" \
         -e "s|{{ODOO_PORT}}|${ODOO_PORT}|g" \
         "$ODOO_CONF_TEMPLATE" >"$temp_file"

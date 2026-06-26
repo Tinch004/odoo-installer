@@ -162,7 +162,10 @@ check_permissions() {
 
 check_database() {
     command -v "$PSQL_COMMAND" >/dev/null 2>&1 || return 1
-    "$PSQL_COMMAND" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc 'SELECT 1' |
+    local db_password
+    db_password="$(get_db_password)"
+    PGPASSWORD="$db_password" "$PSQL_COMMAND" \
+        -h localhost --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -tAc 'SELECT 1' |
         "$GREP_COMMAND" -qx '1'
 }
 
