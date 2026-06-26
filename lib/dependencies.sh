@@ -62,6 +62,8 @@ install_dependencies() {
         info "Perfil minimo activo: se omiten herramientas opcionales."
     fi
 
+    run_command "Configurando acceso local a PostgreSQL..." configure_postgres_local_access
+
     ok "Dependencias instaladas correctamente."
 }
 

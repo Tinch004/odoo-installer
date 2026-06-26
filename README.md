@@ -1,19 +1,17 @@
 # Odoo Installer
 
-Instalador y CLI de administracion para Odoo en Ubuntu 22.04 y Ubuntu 24.04.
-
-La version 1.1 mejora el instalador existente: chequeos previos, perfiles de dependencias, clonado rapido, mejor soporte WSL, limpieza automatica e instalacion mas liviana.
+Instalador y CLI de administracion para Odoo en Ubuntu Debian-based.
 
 ## Requisitos
 
-- Ubuntu 22.04 o Ubuntu 24.04
+- Debian/Ubuntu (cualquier version reciente)
 - Usuario con `sudo`
 - Conexion a Internet
 - 5 GB libres como minimo
 - 8 GB libres recomendados
 - 2 GB RAM como minimo practico
 
-El instalador verifica sistema operativo, arquitectura, RAM, disco, Internet, Git, Python, PostgreSQL y WSL antes de comenzar.
+El instalador verifica arquitectura, RAM, disco, Internet, Git y Python antes de comenzar.
 
 ## Instalacion
 
@@ -89,7 +87,6 @@ install.sh
 README.md
 CHANGELOG.md
 LICENSE
-.gitignore
 
 lib/
     colors.sh
@@ -173,7 +170,7 @@ Despues de instalar, usa:
 odoo help
 ```
 
-Comandos principales:
+### Servicio
 
 ```bash
 odoo start
@@ -181,28 +178,113 @@ odoo stop
 odoo restart
 odoo status
 odoo logs
+```
+
+### Odoo
+
+```bash
 odoo shell
 odoo config
 odoo version
 odoo info
 odoo update
-odoo update-module sale
+odoo update-module MODULO
+odoo git
+odoo service
+odoo fix-permissions
+```
+
+### Base de datos y backups
+
+```bash
 odoo backup
 odoo backup schedule
 odoo backup list
 odoo backup clean
 odoo backup restore
 odoo restore
-odoo git
-odoo service
-odoo fix-permissions
-odoo doctor
-odoo doctor --fix
+```
+
+### Modulos
+
+```bash
 odoo install-module https://github.com/OCA/web.git
 odoo list-modules
 ```
 
-La CLI conserva comandos opcionales existentes para Nginx, SSL y Cloudflare Tunnel, pero la release 1.1 se enfoca en mejorar el instalador base.
+### Diagnostico
+
+```bash
+odoo doctor
+odoo doctor --fix
+```
+
+### Cloudflare Tunnel
+
+Expone Odoo en internet via un tunel cifrado de Cloudflare sin necesidad de abrir puertos. Crea automaticamente el DNS en tu zona de Cloudflare.
+
+```bash
+odoo tunnel install    # instala cloudflared, autenticacion, crea tunel y DNS
+odoo tunnel start
+odoo tunnel stop
+odoo tunnel restart
+odoo tunnel status
+odoo tunnel url        # muestra la URL publica asignada
+```
+
+Durante `odoo tunnel install` se solicita:
+
+```text
+Dominio: ejemplo.com
+Subdominio [odoo]: odoo
+```
+
+Resultado: `https://odoo.ejemplo.com` con HTTPS gestionado por Cloudflare.
+
+### Nginx (proxy reverso)
+
+Configura Nginx como proxy reverso frente a Odoo en el puerto 80. Requerido antes de instalar SSL si no se usa Cloudflare Tunnel.
+
+```bash
+odoo nginx install     # instala nginx y configura el proxy para el dominio indicado
+odoo nginx restart
+odoo nginx uninstall
+```
+
+Durante `odoo nginx install` se solicita el dominio. Si Cloudflare Tunnel ya esta configurado, toma el hostname automaticamente.
+
+El proxy generado incluye headers `X-Forwarded-*` y timeouts de 720 segundos.
+
+### SSL con Let's Encrypt
+
+Instala un certificado TLS gratuito via Certbot sobre el sitio Nginx configurado.
+
+```bash
+odoo ssl install       # instala certbot, obtiene certificado y redirige HTTP a HTTPS
+odoo ssl renew         # renueva certificados existentes
+odoo ssl status        # muestra certificados instalados
+```
+
+Durante `odoo ssl install` se usa el dominio ya configurado en Nginx o Cloudflare Tunnel. Si Nginx no esta instalado, lo instala automaticamente.
+
+> Si ya usas Cloudflare Tunnel, el SSL publico lo gestiona Cloudflare; `odoo ssl install` no es necesario.
+
+### Flujo recomendado para exponer Odoo publicamente
+
+**Opcion A - Cloudflare Tunnel (sin servidor publico, sin abrir puertos):**
+
+```bash
+odoo tunnel install
+```
+
+**Opcion B - Dominio propio con DNS + Nginx + SSL:**
+
+```bash
+odoo nginx install
+odoo ssl install
+```
+
+En ambos casos, apuntar el DNS del dominio al servidor (o dejarlo que lo haga el tunnel automaticamente).
 
 ## Preguntas frecuentes
 
@@ -237,3 +319,7 @@ Tambien puedes verlos con:
 ```bash
 odoo logs
 ```
+
+### No puedo acceder al database manager
+
+Por diseno, el database manager web esta deshabilitado (`list_db=False` en `/etc/odoo.conf`). La base de datos se crea automaticamente durante la instalacion. Accede directamente en `/web/login`.

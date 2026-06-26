@@ -50,7 +50,11 @@ configure_postgres_local_access() {
     local hba_file
     local temp_file
 
-    hba_file="$("$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc 'SHOW hba_file;' | "$TR_COMMAND" -d '[:space:]')"
+    hba_file="$("$RUNUSER_COMMAND" -u postgres -- "$PSQL_COMMAND" -tAc 'SHOW hba_file;' 2>/dev/null | "$TR_COMMAND" -d '[:space:]' || true)"
+
+    if [[ -z "$hba_file" || ! -f "$hba_file" ]]; then
+        hba_file="$("$FIND_COMMAND" /etc/postgresql -name "pg_hba.conf" 2>/dev/null | "$SORT_COMMAND" -V | "$TAIL_COMMAND" -n 1 || true)"
+    fi
 
     if [[ -z "$hba_file" || ! -f "$hba_file" ]]; then
         error "No se pudo detectar pg_hba.conf."
