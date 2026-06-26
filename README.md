@@ -2,7 +2,18 @@
 
 Instalador y CLI de administracion para Odoo en Ubuntu 22.04 y Ubuntu 24.04.
 
-El proyecto esta escrito completamente en Bash y mantiene una arquitectura modular: el instalador prepara Odoo y luego el servidor se administra con el comando `odoo`.
+La version 1.1 mejora el instalador existente: chequeos previos, perfiles de dependencias, clonado rapido, mejor soporte WSL, limpieza automatica e instalacion mas liviana.
+
+## Requisitos
+
+- Ubuntu 22.04 o Ubuntu 24.04
+- Usuario con `sudo`
+- Conexion a Internet
+- 5 GB libres como minimo
+- 8 GB libres recomendados
+- 2 GB RAM como minimo practico
+
+El instalador verifica sistema operativo, arquitectura, RAM, disco, Internet, Git, Python, PostgreSQL y WSL antes de comenzar.
 
 ## Instalacion
 
@@ -12,15 +23,63 @@ cd odoo-installer
 sudo bash install.sh
 ```
 
-El instalador pregunta solamente la version:
+Durante la instalacion se pregunta:
 
 ```text
 Seleccione la version
 1) Odoo 18
 2) Odoo 19
+
+Instalacion
+1) Minima (recomendada)
+2) Completa
+
+Clonado
+1) Rapido (depth=1)
+2) Completo
 ```
 
-Si ya existe `/opt/odoo/odoo-bin`, permite actualizar, reinstalar o cancelar.
+## Instalacion minima
+
+Es la opcion recomendada. Instala solo lo necesario para ejecutar y desarrollar Odoo:
+
+- Python, pip y venv
+- PostgreSQL
+- Git
+- Librerias de compilacion necesarias para `requirements.txt`
+- Librerias base usadas por dependencias Python de Odoo
+
+## Instalacion completa
+
+Incluye todo lo anterior y agrega herramientas opcionales:
+
+- `wkhtmltopdf`
+- `npm`
+- `node-less`
+- `rtlcss`
+- utilidades adicionales como `unzip`, `wget`, `xz-utils`
+
+Usa esta opcion si necesitas reportes PDF, assets avanzados o herramientas extra del entorno Odoo.
+
+## Clonado
+
+El modo rapido usa:
+
+```bash
+git clone --depth 1 --branch VERSION https://github.com/odoo/odoo.git /opt/odoo
+```
+
+El modo completo conserva todo el historial Git:
+
+```bash
+git clone --branch VERSION https://github.com/odoo/odoo.git /opt/odoo
+```
+
+## WSL
+
+El instalador detecta WSL automaticamente. No cancela la instalacion, pero muestra una advertencia porque algunas funciones de `systemd` pueden requerir configuracion adicional.
+
+Si systemd no esta disponible, el instalador crea los archivos necesarios y omite las acciones de `systemctl` que no pueden ejecutarse.
 
 ## Estructura del proyecto
 
@@ -28,6 +87,7 @@ Si ya existe `/opt/odoo/odoo-bin`, permite actualizar, reinstalar o cancelar.
 odoo-installer/
 install.sh
 README.md
+CHANGELOG.md
 LICENSE
 .gitignore
 
@@ -53,9 +113,7 @@ templates/
     odoo.service
 ```
 
-## Estructura creada en el servidor
-
-El repositorio oficial se clona directamente en `/opt/odoo`:
+## Estructura generada
 
 ```text
 /opt/odoo
@@ -81,9 +139,35 @@ Tambien se crean:
 /usr/local/lib/odoo-installer/
 ```
 
-## CLI
+## Instalacion existente
 
-Despues de instalar, administra Odoo con:
+Si ya existe `/opt/odoo/odoo-bin`, el instalador ofrece:
+
+```text
+1) Actualizar
+2) Reinstalar
+3) Cancelar
+```
+
+Actualizar ejecuta `git pull` y reinstala `requirements.txt`.
+
+Reinstalar elimina solamente `/opt/odoo` y vuelve a instalar.
+
+## Limpieza automatica
+
+Al finalizar se ejecuta:
+
+```bash
+apt autoremove -y
+apt clean
+pip cache purge
+```
+
+Tambien se eliminan temporales propios del instalador.
+
+## Comandos disponibles
+
+Despues de instalar, usa:
 
 ```bash
 odoo help
@@ -103,138 +187,53 @@ odoo version
 odoo info
 odoo update
 odoo update-module sale
-odoo git
-odoo service
-odoo fix-permissions
-```
-
-## Doctor
-
-```bash
-odoo doctor
-odoo doctor --fix
-```
-
-`doctor` verifica PostgreSQL, Python, pip, virtualenv, servicio, puerto, configuracion, logs, permisos, Git, addons, sources, base de datos, Nginx, Cloudflare Tunnel y HTTPS si estan configurados.
-
-`doctor --fix` intenta reparar permisos, virtualenv, pip, requirements, servicio, logs, PostgreSQL, configuracion, systemd, Nginx y Cloudflare Tunnel.
-
-## Backups
-
-Crear backup manual:
-
-```bash
 odoo backup
-```
-
-Los backups se guardan en:
-
-```text
-/opt/odoo/backups/YYYY-MM-DD_HH-MM.dump
-```
-
-Comandos:
-
-```bash
 odoo backup schedule
 odoo backup list
 odoo backup clean
 odoo backup restore
 odoo restore
-```
-
-`odoo backup schedule` permite elegir frecuencia diaria, semanal o mensual y crea automaticamente un cron en `/etc/cron.d/odoo-backup`.
-
-## Cloudflare Tunnel
-
-Configurar un Named Tunnel:
-
-```bash
-odoo tunnel install
-```
-
-Pregunta:
-
-```text
-Dominio: midominio.com
-Subdominio [odoo]:
-```
-
-Si se presiona ENTER en subdominio, usa:
-
-```text
-https://odoo.midominio.com
-```
-
-Comandos:
-
-```bash
-odoo tunnel start
-odoo tunnel stop
-odoo tunnel restart
-odoo tunnel status
-odoo tunnel url
-```
-
-El tunnel usa `cloudflared`, `config.yml`, DNS automatico y un servicio systemd propio.
-
-## Nginx
-
-```bash
-odoo nginx install
-odoo nginx restart
-odoo nginx uninstall
-```
-
-`odoo nginx install` instala Nginx, crea el virtualhost, configura `proxy_pass` hacia Odoo, habilita el sitio y reinicia el servicio.
-
-## SSL
-
-Si no se usa Cloudflare Tunnel:
-
-```bash
-odoo ssl install
-odoo ssl renew
-odoo ssl status
-```
-
-`odoo ssl install` instala Certbot, genera el certificado con Nginx y deja la renovacion automatica configurada por Certbot.
-
-## Modulos desde Git
-
-Instalar addons desde un repositorio:
-
-```bash
+odoo git
+odoo service
+odoo fix-permissions
+odoo doctor
+odoo doctor --fix
 odoo install-module https://github.com/OCA/web.git
-```
-
-El comando clona el repositorio, detecta todos los directorios con `__manifest__.py` o `__openerp__.py`, los copia dentro de `/opt/odoo/sources` y actualiza la lista de aplicaciones.
-
-No instala automaticamente los modulos en la base de datos.
-
-Listar modulos disponibles:
-
-```bash
 odoo list-modules
 ```
 
-Muestra nombre, version, ruta y manifest encontrado.
+La CLI conserva comandos opcionales existentes para Nginx, SSL y Cloudflare Tunnel, pero la release 1.1 se enfoca en mejorar el instalador base.
 
-## Ejemplos
+## Preguntas frecuentes
+
+### Que perfil debo usar?
+
+Usa `Minima` salvo que necesites herramientas opcionales como `wkhtmltopdf`, `npm`, `node-less` o `rtlcss`.
+
+### Que clonado debo usar?
+
+Usa `Rapido` para instalaciones normales. Usa `Completo` si necesitas historial Git completo.
+
+### Puedo ejecutar el instalador mas de una vez?
+
+Si. La instalacion es idempotente: detecta una instalacion existente, evita duplicar reglas de PostgreSQL y reemplaza archivos de servicio/configuracion de forma controlada.
+
+### Que pasa con poco espacio libre?
+
+Con menos de 8 GB muestra advertencia. Con menos de 5 GB cancela antes de descargar Odoo.
+
+### Funciona en WSL?
+
+Puede funcionar, pero systemd debe estar habilitado para usar el servicio `odoo` con normalidad. Si systemd no esta disponible, el instalador informa la situacion y omite esas acciones.
+
+### Donde estan los logs?
+
+```text
+/var/log/odoo/odoo.log
+```
+
+Tambien puedes verlos con:
 
 ```bash
 odoo logs
-odoo restart
-odoo doctor
-odoo doctor --fix
-odoo backup
-odoo backup schedule
-odoo tunnel install
-odoo tunnel start
-odoo tunnel url
-odoo nginx install
-odoo ssl install
-odoo install-module https://github.com/OCA/web.git
-odoo list-modules
-odoo info
 ```

@@ -5,24 +5,29 @@ set -Eeuo pipefail
 create_service() {
     step "Creando servicio systemd"
     render_service_template
-    run_command "Recargando systemd..." "$SYSTEMCTL_COMMAND" daemon-reload
-    run_command "Habilitando servicio ${SERVICE_NAME}..." "$SYSTEMCTL_COMMAND" enable "$SERVICE_NAME"
+    run_command "Recargando systemd..." run_systemctl daemon-reload
+    run_command "Habilitando servicio ${SERVICE_NAME}..." run_systemctl enable "$SERVICE_NAME"
     ok "Servicio ${SERVICE_NAME} creado correctamente."
 }
 
 odoo_service_start() {
-    run_privileged "$SYSTEMCTL_COMMAND" start "$SERVICE_NAME"
+    run_systemctl_privileged start "$SERVICE_NAME"
 }
 
 odoo_service_stop() {
-    run_privileged "$SYSTEMCTL_COMMAND" stop "$SERVICE_NAME"
+    run_systemctl_privileged stop "$SERVICE_NAME"
 }
 
 odoo_service_restart() {
-    run_privileged "$SYSTEMCTL_COMMAND" restart "$SERVICE_NAME"
+    run_systemctl_privileged restart "$SERVICE_NAME"
 }
 
 odoo_service_status() {
+    if ! systemd_available; then
+        warn "systemd no esta disponible en este entorno."
+        return 0
+    fi
+
     "$SYSTEMCTL_COMMAND" status "$SERVICE_NAME"
 }
 
@@ -33,7 +38,12 @@ odoo_service_show() {
 
 start_odoo() {
     step "Iniciando Odoo"
-    run_command "Reiniciando servicio ${SERVICE_NAME}..." "$SYSTEMCTL_COMMAND" restart "$SERVICE_NAME"
+    run_command "Reiniciando servicio ${SERVICE_NAME}..." run_systemctl restart "$SERVICE_NAME"
+
+    if ! systemd_available; then
+        warn "Servicio creado, pero systemd no esta activo. Inicia Odoo manualmente o habilita systemd."
+        return
+    fi
 
     if "$SYSTEMCTL_COMMAND" is-active --quiet "$SERVICE_NAME"; then
         ok "El servicio ${SERVICE_NAME} esta activo."

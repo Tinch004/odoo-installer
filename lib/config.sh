@@ -4,6 +4,8 @@ set -Eeuo pipefail
 
 EXPECTED_INSTALL_DIR="/opt/odoo"
 INSTALL_DIR="$EXPECTED_INSTALL_DIR"
+INSTALL_PARENT_DIR="/opt"
+TMP_DIR="/tmp"
 ADDONS_DIR="${INSTALL_DIR}/addons"
 SOURCES_DIR="${INSTALL_DIR}/sources"
 VENV_DIR="${INSTALL_DIR}/venv"
@@ -78,6 +80,14 @@ detect_user_home() {
         IFS=':' read -r _ _ _ _ _ detected_home _ <<<"$passwd_entry"
     fi
 
+    if [[ -z "$detected_home" && -n "${SUDO_HOME:-}" && -d "${SUDO_HOME:-}" ]]; then
+        detected_home="$SUDO_HOME"
+    fi
+
+    if [[ -z "$detected_home" && -d "/home/${user_name}" ]]; then
+        detected_home="/home/${user_name}"
+    fi
+
     if [[ -z "$detected_home" ]]; then
         detected_home="${HOME:-}"
     fi
@@ -104,6 +114,7 @@ CREATEDB_COMMAND="createdb"
 CREATEUSER_COMMAND="createuser"
 CURL_COMMAND="curl"
 DATE_COMMAND="date"
+DF_COMMAND="df"
 DIRNAME_COMMAND="dirname"
 DROPDB_COMMAND="dropdb"
 FIND_COMMAND="find"
@@ -123,6 +134,7 @@ PYTHON3_COMMAND="python3"
 RM_COMMAND="rm"
 RUNUSER_COMMAND="runuser"
 SED_COMMAND="sed"
+SERVICE_COMMAND="service"
 SNAP_COMMAND="snap"
 SORT_COMMAND="sort"
 SS_COMMAND="ss"
@@ -131,9 +143,19 @@ SYSTEMCTL_COMMAND="systemctl"
 TAIL_COMMAND="tail"
 TOUCH_COMMAND="touch"
 TR_COMMAND="tr"
+UNAME_COMMAND="uname"
 
 ODOO_VERSION=""
 ODOO_ADMIN_PASSWORD=""
+INSTALL_PROFILE="minimal"
+CLONE_MODE="fast"
+CLONE_DEPTH="1"
+INSTALL_STEP_CURRENT=0
+INSTALL_STEP_TOTAL=0
+MIN_DISK_WARN_GB=8
+MIN_DISK_REQUIRED_GB=5
+SYSTEM_CHECK_FAILED=0
+SYSTEM_CHECK_WARNINGS=0
 
 generate_config() {
     step "Generando configuracion"

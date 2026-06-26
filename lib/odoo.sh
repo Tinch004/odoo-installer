@@ -66,12 +66,20 @@ prepare_install_directory() {
 directory_has_content() {
     local directory="$1"
 
-    "$FIND_COMMAND" "$directory" -mindepth 1 -maxdepth 1 -print -quit | grep -q .
+    "$FIND_COMMAND" "$directory" -mindepth 1 -maxdepth 1 -print -quit | "$GREP_COMMAND" -q .
 }
 
 clone_odoo_repository() {
+    local clone_args=()
+
+    ensure_download_space
+
+    if [[ "$CLONE_MODE" == "fast" ]]; then
+        clone_args=(--depth "$CLONE_DEPTH")
+    fi
+
     run_command "Clonando Odoo ${ODOO_VERSION}..." \
-        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "$ODOO_REPOSITORY" "$INSTALL_DIR"
+        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "${clone_args[@]}" "$ODOO_REPOSITORY" "$INSTALL_DIR"
 }
 
 create_runtime_directories() {

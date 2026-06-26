@@ -189,8 +189,8 @@ create_cloudflared_service() {
 
     run_privileged "$INSTALL_COMMAND" -m 0644 "$temp_file" "$CLOUDFLARED_SERVICE_FILE"
     "$RM_COMMAND" -f "$temp_file"
-    run_privileged "$SYSTEMCTL_COMMAND" daemon-reload
-    run_privileged "$SYSTEMCTL_COMMAND" enable "$CLOUDFLARED_SERVICE_NAME"
+    run_systemctl_privileged daemon-reload
+    run_systemctl_privileged enable "$CLOUDFLARED_SERVICE_NAME"
 }
 
 create_cloudflared_dns() {
@@ -205,18 +205,23 @@ create_cloudflared_dns() {
 }
 
 tunnel_start() {
-    run_privileged "$SYSTEMCTL_COMMAND" start "$CLOUDFLARED_SERVICE_NAME"
+    run_systemctl_privileged start "$CLOUDFLARED_SERVICE_NAME"
 }
 
 tunnel_stop() {
-    run_privileged "$SYSTEMCTL_COMMAND" stop "$CLOUDFLARED_SERVICE_NAME"
+    run_systemctl_privileged stop "$CLOUDFLARED_SERVICE_NAME"
 }
 
 tunnel_restart() {
-    run_privileged "$SYSTEMCTL_COMMAND" restart "$CLOUDFLARED_SERVICE_NAME"
+    run_systemctl_privileged restart "$CLOUDFLARED_SERVICE_NAME"
 }
 
 tunnel_status() {
+    if ! systemd_available; then
+        warn "systemd no esta disponible en este entorno."
+        return 0
+    fi
+
     "$SYSTEMCTL_COMMAND" status "$CLOUDFLARED_SERVICE_NAME"
 }
 

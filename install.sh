@@ -21,9 +21,14 @@ source "$ROOT_DIR/lib/service.sh"
 # shellcheck source=lib/cli.sh
 source "$ROOT_DIR/lib/cli.sh"
 
+INSTALL_STEP_TOTAL=13
+
 banner
 check_root
+run_system_check
 select_version
+select_install_profile
+select_clone_mode
 install_dependencies
 install_odoo
 configure_postgres
@@ -31,4 +36,5 @@ generate_config
 create_service
 install_cli
 start_odoo
+cleanup_installation
 finish

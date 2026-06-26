@@ -37,7 +37,21 @@ ok() {
 }
 
 step() {
+    local timestamp
+    local prefix=""
+
+    timestamp="$("${DATE_COMMAND:-date}" +%H:%M:%S 2>/dev/null || true)"
+
+    if [[ "${INSTALL_STEP_TOTAL:-0}" -gt 0 ]]; then
+        INSTALL_STEP_CURRENT="$(( ${INSTALL_STEP_CURRENT:-0} + 1 ))"
+        prefix="[${INSTALL_STEP_CURRENT}/${INSTALL_STEP_TOTAL}] "
+    fi
+
     printf '\n%b\n' "${BLUE}============================================================${RESET}"
-    printf '%b\n' "${WHITE}$*${RESET}"
+    if [[ -n "$timestamp" ]]; then
+        printf '%b\n' "${WHITE}${prefix}$* (${timestamp})${RESET}"
+    else
+        printf '%b\n' "${WHITE}${prefix}$*${RESET}"
+    fi
     printf '%b\n' "${BLUE}============================================================${RESET}"
 }

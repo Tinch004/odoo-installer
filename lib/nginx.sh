@@ -93,7 +93,7 @@ enable_nginx_site() {
 }
 
 nginx_restart() {
-    run_privileged "$SYSTEMCTL_COMMAND" restart "$NGINX_SERVICE_NAME"
+    run_systemctl_privileged restart "$NGINX_SERVICE_NAME"
 }
 
 nginx_uninstall() {
@@ -103,6 +103,11 @@ nginx_uninstall() {
 }
 
 nginx_status() {
+    if ! systemd_available; then
+        warn "systemd no esta disponible en este entorno."
+        return 0
+    fi
+
     "$SYSTEMCTL_COMMAND" status "$NGINX_SERVICE_NAME"
 }
 

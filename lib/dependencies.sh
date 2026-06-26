@@ -2,11 +2,10 @@
 
 set -Eeuo pipefail
 
-APT_PACKAGES=(
+APT_MINIMAL_PACKAGES=(
     build-essential
     ca-certificates
     curl
-    fontconfig
     g++
     gcc
     git
@@ -26,8 +25,6 @@ APT_PACKAGES=(
     libxcb1-dev
     libxml2-dev
     libxslt1-dev
-    node-less
-    npm
     pkg-config
     postgresql
     python3
@@ -36,12 +33,18 @@ APT_PACKAGES=(
     python3-setuptools
     python3-venv
     python3-wheel
+    zlib1g-dev
+)
+
+APT_FULL_EXTRA_PACKAGES=(
+    fontconfig
+    node-less
+    npm
     software-properties-common
     unzip
     wget
     wkhtmltopdf
     xz-utils
-    zlib1g-dev
 )
 
 install_dependencies() {
@@ -52,12 +55,26 @@ install_dependencies() {
     export DEBIAN_FRONTEND=noninteractive
 
     run_command "Actualizando indices de APT..." "$APT_GET_COMMAND" update
-    run_command "Instalando paquetes del sistema..." \
-        "$APT_GET_COMMAND" install -y --no-install-recommends "${APT_PACKAGES[@]}"
+    install_minimal_dependencies
 
-    install_rtlcss
+    if [[ "$INSTALL_PROFILE" == "full" ]]; then
+        install_full_dependencies
+    else
+        info "Perfil minimo activo: se omiten herramientas opcionales."
+    fi
 
     ok "Dependencias instaladas correctamente."
+}
+
+install_minimal_dependencies() {
+    run_command "Instalando perfil minimo..." \
+        "$APT_GET_COMMAND" install -y --no-install-recommends "${APT_MINIMAL_PACKAGES[@]}"
+}
+
+install_full_dependencies() {
+    run_command "Instalando extras del perfil completo..." \
+        "$APT_GET_COMMAND" install -y --no-install-recommends "${APT_FULL_EXTRA_PACKAGES[@]}"
+    install_rtlcss
 }
 
 install_rtlcss() {

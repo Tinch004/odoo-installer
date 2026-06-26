@@ -98,8 +98,8 @@ upgrade_pip() {
 
 fix_systemd_service() {
     render_service_template
-    run_privileged "$SYSTEMCTL_COMMAND" daemon-reload
-    run_privileged "$SYSTEMCTL_COMMAND" enable "$SERVICE_NAME"
+    run_systemctl_privileged daemon-reload
+    run_systemctl_privileged enable "$SERVICE_NAME"
 }
 
 fix_nginx_if_configured() {
@@ -118,8 +118,8 @@ fix_cloudflare_if_configured() {
         return
     fi
 
-    run_privileged "$SYSTEMCTL_COMMAND" daemon-reload
-    run_privileged "$SYSTEMCTL_COMMAND" enable "$CLOUDFLARED_SERVICE_NAME"
+    run_systemctl_privileged daemon-reload
+    run_systemctl_privileged enable "$CLOUDFLARED_SERVICE_NAME"
     tunnel_restart
 }
 
