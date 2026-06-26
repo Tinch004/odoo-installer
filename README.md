@@ -221,25 +221,46 @@ odoo doctor --fix
 
 ### Cloudflare Tunnel
 
-Expone Odoo en internet via un tunel cifrado de Cloudflare sin necesidad de abrir puertos. Crea automaticamente el DNS en tu zona de Cloudflare.
+Expone Odoo en internet via un tunel cifrado de Cloudflare sin necesidad de abrir puertos.
 
 ```bash
-odoo tunnel install    # instala cloudflared, autenticacion, crea tunel y DNS
+odoo tunnel install    # pregunta el modo (ver abajo)
 odoo tunnel start
 odoo tunnel stop
 odoo tunnel restart
 odoo tunnel status
-odoo tunnel url        # muestra la URL publica asignada
+odoo tunnel url        # muestra la URL publica
 ```
 
-Durante `odoo tunnel install` se solicita:
+Durante `odoo tunnel install` se pregunta el modo:
+
+```text
+1) Con dominio propio (DNS permanente en Cloudflare)
+2) URL temporal de Cloudflare (sin dominio, sin configuracion)
+```
+
+**Modo 1 — Dominio propio:**
+
+Requiere cuenta Cloudflare y dominio configurado. Solicita:
 
 ```text
 Dominio: ejemplo.com
 Subdominio [odoo]: odoo
 ```
 
-Resultado: `https://odoo.ejemplo.com` con HTTPS gestionado por Cloudflare.
+Instala cloudflared, autentica con Cloudflare, crea el tunnel, registra el DNS automaticamente.
+Resultado: `https://odoo.ejemplo.com` permanente con HTTPS gestionado por Cloudflare.
+
+**Modo 2 — URL temporal:**
+
+No requiere dominio ni cuenta Cloudflare. Levanta el tunnel directamente con una URL del tipo `https://nombre-aleatorio.trycloudflare.com`. La URL cambia cada vez que el servicio se reinicia.
+
+```bash
+odoo tunnel install    # elegir opcion 2
+odoo tunnel url        # muestra la URL generada (puede tardar unos segundos)
+```
+
+Si `odoo tunnel url` no muestra la URL todavia, espera unos segundos y reintenta. El tunnel puede tardar en establecerse.
 
 ### Nginx (proxy reverso)
 
@@ -271,20 +292,25 @@ Durante `odoo ssl install` se usa el dominio ya configurado en Nginx o Cloudflar
 
 ### Flujo recomendado para exponer Odoo publicamente
 
-**Opcion A - Cloudflare Tunnel (sin servidor publico, sin abrir puertos):**
+**Opcion A — URL temporal sin configuracion (Cloudflare):**
 
 ```bash
-odoo tunnel install
+odoo tunnel install    # elegir opcion 2
+odoo tunnel url
 ```
 
-**Opcion B - Dominio propio con DNS + Nginx + SSL:**
+**Opcion B — Dominio propio con Cloudflare Tunnel:**
+
+```bash
+odoo tunnel install    # elegir opcion 1
+```
+
+**Opcion C — Dominio propio con Nginx + SSL (Let's Encrypt):**
 
 ```bash
 odoo nginx install
 odoo ssl install
 ```
-
-En ambos casos, apuntar el DNS del dominio al servidor (o dejarlo que lo haga el tunnel automaticamente).
 
 ## Preguntas frecuentes
 

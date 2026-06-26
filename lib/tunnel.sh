@@ -300,14 +300,16 @@ tunnel_url() {
 tunnel_url_quick() {
     local url=""
 
-    if systemd_available; then
-        url="$("$SYSTEMCTL_COMMAND" --no-pager -n 50 status "$CLOUDFLARED_SERVICE_NAME" 2>/dev/null \
-            | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+    if command -v journalctl >/dev/null 2>&1; then
+        url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager 2>/dev/null \
+            | "$GREP_COMMAND" -oE 'https://[^[:space:]|]+\.trycloudflare\.com' \
+            | "$TAIL_COMMAND" -n 1 || true)"
     fi
 
-    if [[ -z "$url" ]] && command -v journalctl >/dev/null 2>&1; then
-        url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager -n 100 2>/dev/null \
-            | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+    if [[ -z "$url" ]] && systemd_available; then
+        url="$("$SYSTEMCTL_COMMAND" --no-pager -n 500 status "$CLOUDFLARED_SERVICE_NAME" 2>/dev/null \
+            | "$GREP_COMMAND" -oE 'https://[^[:space:]|]+\.trycloudflare\.com' \
+            | "$TAIL_COMMAND" -n 1 || true)"
     fi
 
     if [[ -n "$url" ]]; then
@@ -317,7 +319,8 @@ tunnel_url_quick() {
 
     warn "URL aun no disponible. El tunnel puede estar iniciando."
     info "Reintenta en unos segundos con: odoo tunnel url"
-    info "O revisa los logs con: journalctl -u ${CLOUDFLARED_SERVICE_NAME} -f"
+    info "O revisa los logs directamente con:"
+    info "  journalctl -u ${CLOUDFLARED_SERVICE_NAME} | grep trycloudflare"
 }
 
 tunnel_is_configured() {
@@ -331,8 +334,9 @@ tunnel_https_url() {
     if [[ "$tunnel_mode" == "quick" ]]; then
         local url=""
         if command -v journalctl >/dev/null 2>&1; then
-            url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager -n 100 2>/dev/null \
-                | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+            url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager 2>/dev/null \
+                | "$GREP_COMMAND" -oE 'https://[^[:space:]|]+\.trycloudflare\.com' \
+                | "$TAIL_COMMAND" -n 1 || true)"
         fi
         [[ -n "$url" ]] || return 1
         printf '%s\n' "$url"
