@@ -48,6 +48,22 @@ HELP
 }
 
 tunnel_install() {
+    printf '\n'
+    printf '1) Con dominio propio (DNS permanente en Cloudflare)\n\n'
+    printf '2) URL temporal de Cloudflare (sin dominio, sin configuracion)\n\n'
+
+    local selected_mode=""
+    while true; do
+        read -r -p "Seleccione una opcion: " selected_mode
+        case "$selected_mode" in
+        1) tunnel_install_named; return ;;
+        2) tunnel_install_quick; return ;;
+        *) warn "Opcion invalida. Ingresa 1 o 2." ;;
+        esac
+    done
+}
+
+tunnel_install_named() {
     local domain
     local subdomain
     local hostname
@@ -65,10 +81,46 @@ tunnel_install() {
     create_cloudflared_service
     create_cloudflared_dns "$hostname"
     write_state_value "TUNNEL_HOSTNAME" "$hostname"
+    write_state_value "TUNNEL_MODE" "named"
     tunnel_restart
 
     ok "Cloudflare Tunnel configurado."
     info "URL: https://${hostname}"
+}
+
+tunnel_install_quick() {
+    install_cloudflared
+    create_cloudflared_quick_service
+    write_state_value "TUNNEL_MODE" "quick"
+    tunnel_restart
+
+    ok "Cloudflare Tunnel iniciado en modo rapido."
+    info "La URL publica aparece en los logs (puede tardar unos segundos):"
+    info "  odoo tunnel url"
+}
+
+create_cloudflared_quick_service() {
+    local temp_file
+
+    temp_file="$("$MK_TEMP_COMMAND")"
+    {
+        printf '[Unit]\n'
+        printf 'Description=Cloudflare Tunnel for Odoo\n'
+        printf 'After=network-online.target\n'
+        printf 'Wants=network-online.target\n\n'
+        printf '[Service]\n'
+        printf 'Type=simple\n'
+        printf 'ExecStart=%s tunnel --url %s\n' "$CLOUDFLARED_BIN" "$CLOUDFLARED_ORIGIN_SERVICE"
+        printf 'Restart=always\n'
+        printf 'RestartSec=5\n\n'
+        printf '[Install]\n'
+        printf 'WantedBy=multi-user.target\n'
+    } >"$temp_file"
+
+    run_privileged "$INSTALL_COMMAND" -m 0644 "$temp_file" "$CLOUDFLARED_SERVICE_FILE"
+    "$RM_COMMAND" -f "$temp_file"
+    run_systemctl_privileged daemon-reload
+    run_systemctl_privileged enable "$CLOUDFLARED_SERVICE_NAME"
 }
 
 install_cloudflared() {
@@ -226,8 +278,15 @@ tunnel_status() {
 }
 
 tunnel_url() {
-    local hostname
+    local tunnel_mode
+    tunnel_mode="$(read_state_value "TUNNEL_MODE")"
 
+    if [[ "$tunnel_mode" == "quick" ]]; then
+        tunnel_url_quick
+        return
+    fi
+
+    local hostname
     hostname="$(read_state_value "TUNNEL_HOSTNAME")"
 
     if [[ -z "$hostname" ]]; then
@@ -238,13 +297,49 @@ tunnel_url() {
     printf 'https://%s\n' "$hostname"
 }
 
+tunnel_url_quick() {
+    local url=""
+
+    if systemd_available; then
+        url="$("$SYSTEMCTL_COMMAND" --no-pager -n 50 status "$CLOUDFLARED_SERVICE_NAME" 2>/dev/null \
+            | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+    fi
+
+    if [[ -z "$url" ]] && command -v journalctl >/dev/null 2>&1; then
+        url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager -n 100 2>/dev/null \
+            | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+    fi
+
+    if [[ -n "$url" ]]; then
+        printf '%s\n' "$url"
+        return
+    fi
+
+    warn "URL aun no disponible. El tunnel puede estar iniciando."
+    info "Reintenta en unos segundos con: odoo tunnel url"
+    info "O revisa los logs con: journalctl -u ${CLOUDFLARED_SERVICE_NAME} -f"
+}
+
 tunnel_is_configured() {
-    [[ -f "$CLOUDFLARED_CONFIG_FILE" && -f "$CLOUDFLARED_SERVICE_FILE" ]]
+    [[ -f "$CLOUDFLARED_SERVICE_FILE" ]]
 }
 
 tunnel_https_url() {
-    local hostname
+    local tunnel_mode
+    tunnel_mode="$(read_state_value "TUNNEL_MODE")"
 
+    if [[ "$tunnel_mode" == "quick" ]]; then
+        local url=""
+        if command -v journalctl >/dev/null 2>&1; then
+            url="$(journalctl -u "$CLOUDFLARED_SERVICE_NAME" --no-pager -n 100 2>/dev/null \
+                | "$GREP_COMMAND" -o 'https://[^ ]*\.trycloudflare\.com' | "$TAIL_COMMAND" -n 1 || true)"
+        fi
+        [[ -n "$url" ]] || return 1
+        printf '%s\n' "$url"
+        return
+    fi
+
+    local hostname
     hostname="$(read_state_value "TUNNEL_HOSTNAME")"
     [[ -n "$hostname" ]] || return 1
     printf 'https://%s\n' "$hostname"
