@@ -29,6 +29,7 @@ run_system_check
 select_version
 select_install_profile
 select_clone_mode
+select_enterprise_mode
 install_dependencies
 install_odoo
 configure_postgres

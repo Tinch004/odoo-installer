@@ -2,6 +2,65 @@
 
 set -Eeuo pipefail
 
+select_enterprise_mode() {
+    printf '\n'
+    printf '1) Community (repositorio publico, gratuito)\n\n'
+    printf '2) Enterprise (repositorio privado, requiere acceso de Odoo)\n\n'
+
+    while true; do
+        read -r -p "Seleccione edicion: " selected_edition
+        case "$selected_edition" in
+        1)
+            ENTERPRISE_MODE="community"
+            return
+            ;;
+        2)
+            ENTERPRISE_MODE="enterprise"
+            prompt_enterprise_credentials
+            return
+            ;;
+        *)
+            warn "Opcion invalida. Ingresa 1 o 2."
+            ;;
+        esac
+    done
+}
+
+prompt_enterprise_credentials() {
+    info "Necesitas un Personal Access Token con acceso a github.com/odoo/enterprise"
+    printf '\n'
+    read -r -p "GitHub usuario: " ENTERPRISE_GITHUB_USER
+    read -r -s -p "GitHub token (PAT): " ENTERPRISE_GITHUB_TOKEN
+    printf '\n'
+}
+
+clone_enterprise_repository() {
+    if [[ "$ENTERPRISE_MODE" != "enterprise" ]]; then
+        return
+    fi
+
+    if [[ -d "$ENTERPRISE_DIR" ]] && directory_has_content "$ENTERPRISE_DIR"; then
+        ok "Enterprise ya existe en ${ENTERPRISE_DIR}."
+        return
+    fi
+
+    local clone_args=()
+    if [[ "$CLONE_MODE" == "fast" ]]; then
+        clone_args=(--depth "$CLONE_DEPTH")
+    fi
+
+    local repo_url="https://${ENTERPRISE_GITHUB_USER}:${ENTERPRISE_GITHUB_TOKEN}@github.com/odoo/enterprise.git"
+
+    run_command "Clonando Odoo Enterprise ${ODOO_VERSION}..." \
+        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "${clone_args[@]}" "$repo_url" "$ENTERPRISE_DIR"
+
+    run_command "Configurando permisos de ${ENTERPRISE_DIR}..." \
+        "$CHOWN_COMMAND" -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$ENTERPRISE_DIR"
+
+    write_state_value "ENTERPRISE_MODE" "enterprise"
+    write_state_value "ENTERPRISE_DIR" "$ENTERPRISE_DIR"
+}
+
 install_odoo() {
     step "Instalando Odoo"
 
@@ -12,6 +71,7 @@ install_odoo() {
 
     prepare_install_directory
     clone_odoo_repository
+    clone_enterprise_repository
     create_runtime_directories
     create_virtualenv
     install_python_requirements
@@ -116,8 +176,10 @@ update_odoo() {
 reinstall_odoo() {
     warn "Eliminando solamente ${INSTALL_DIR}..."
     safe_remove_install_dir
+    safe_remove_enterprise_dir
 
     clone_odoo_repository
+    clone_enterprise_repository
     create_runtime_directories
     create_virtualenv
     install_python_requirements
@@ -184,6 +246,13 @@ odoo_update() {
         source "$VENV_ACTIVATE"
         "$PYTHON_BIN" -m pip install -r "$REQUIREMENTS_FILE"
     )
+
+    local enterprise_mode
+    enterprise_mode="$(read_state_value "ENTERPRISE_MODE" || true)"
+    if [[ "$enterprise_mode" == "enterprise" && -d "$ENTERPRISE_DIR" ]]; then
+        run_command "Actualizando Odoo Enterprise..." \
+            "$GIT_COMMAND" -C "$ENTERPRISE_DIR" pull
+    fi
 
     odoo_service_restart
     ok "Odoo actualizado correctamente."

@@ -5,6 +5,8 @@ set -Eeuo pipefail
 EXPECTED_INSTALL_DIR="/opt/odoo"
 INSTALL_DIR="$EXPECTED_INSTALL_DIR"
 INSTALL_PARENT_DIR="/opt"
+ENTERPRISE_DIR="/opt/enterprise"
+ENTERPRISE_REPO="https://github.com/odoo/enterprise.git"
 TMP_DIR="/tmp"
 ADDONS_DIR="${INSTALL_DIR}/addons"
 SOURCES_DIR="${INSTALL_DIR}/sources"
@@ -150,6 +152,9 @@ ODOO_ADMIN_PASSWORD=""
 POSTGRES_PASSWORD=""
 INSTALL_PROFILE="minimal"
 CLONE_MODE="fast"
+ENTERPRISE_MODE="community"
+ENTERPRISE_GITHUB_USER=""
+ENTERPRISE_GITHUB_TOKEN=""
 CLONE_DEPTH="1"
 INSTALL_STEP_CURRENT=0
 INSTALL_STEP_TOTAL=0
@@ -163,6 +168,11 @@ generate_config() {
     create_log_files
     ODOO_ADMIN_PASSWORD="$(get_admin_password)"
     POSTGRES_PASSWORD="$(get_db_password)"
+    if [[ -z "$ENTERPRISE_MODE" || "$ENTERPRISE_MODE" == "community" ]]; then
+        local saved_mode
+        saved_mode="$(read_state_value "ENTERPRISE_MODE" || true)"
+        [[ "$saved_mode" == "enterprise" ]] && ENTERPRISE_MODE="enterprise"
+    fi
     render_odoo_config
     ok "Configuracion generada en ${ODOO_CONF}."
 }
@@ -239,7 +249,11 @@ render_odoo_config() {
     local addons_path
     local temp_file
 
-    addons_path="${ADDONS_DIR},${SOURCES_DIR}"
+    if [[ "$ENTERPRISE_MODE" == "enterprise" ]]; then
+        addons_path="${ENTERPRISE_DIR},${ADDONS_DIR},${SOURCES_DIR}"
+    else
+        addons_path="${ADDONS_DIR},${SOURCES_DIR}"
+    fi
     temp_file="$("$MK_TEMP_COMMAND")"
 
     "$SED_COMMAND" \

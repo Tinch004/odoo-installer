@@ -536,6 +536,19 @@ safe_remove_install_dir() {
     "$RM_COMMAND" -rf -- "$INSTALL_DIR"
 }
 
+safe_remove_enterprise_dir() {
+    if [[ -z "$ENTERPRISE_DIR" || ! -d "$ENTERPRISE_DIR" ]]; then
+        return
+    fi
+
+    if [[ "$ENTERPRISE_DIR" != "/opt/enterprise" ]]; then
+        error "Ruta de enterprise inesperada: ${ENTERPRISE_DIR}"
+        exit 1
+    fi
+
+    "$RM_COMMAND" -rf -- "$ENTERPRISE_DIR"
+}
+
 finish() {
     step "Instalacion finalizada"
     ok "Odoo quedo instalado como servicio systemd: ${SERVICE_NAME}"
