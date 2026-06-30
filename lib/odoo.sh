@@ -16,7 +16,7 @@ select_enterprise_mode() {
             ;;
         2)
             ENTERPRISE_MODE="enterprise"
-            prompt_enterprise_credentials
+            resolve_enterprise_auth
             return
             ;;
         *)
@@ -26,12 +26,28 @@ select_enterprise_mode() {
     done
 }
 
-prompt_enterprise_credentials() {
-    info "Necesitas un Personal Access Token con acceso a github.com/odoo/enterprise"
+has_ssh_enterprise_access() {
+    GIT_TERMINAL_PROMPT=0 \
+    GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes" \
+        "$GIT_COMMAND" ls-remote git@github.com:odoo/enterprise.git HEAD >/dev/null 2>&1
+}
+
+resolve_enterprise_auth() {
+    info "Verificando acceso SSH a github.com/odoo/enterprise..."
+
+    if has_ssh_enterprise_access; then
+        ok "Acceso SSH confirmado. No se necesitan credenciales adicionales."
+        ENTERPRISE_REPO_URL="git@github.com:odoo/enterprise.git"
+        return
+    fi
+
+    warn "Sin acceso SSH al repositorio Enterprise."
+    info "Genera un Personal Access Token en: github.com/settings/tokens (scope: repo)"
     printf '\n'
     read -r -p "GitHub usuario: " ENTERPRISE_GITHUB_USER
     read -r -s -p "GitHub token (PAT): " ENTERPRISE_GITHUB_TOKEN
     printf '\n'
+    ENTERPRISE_REPO_URL="https://${ENTERPRISE_GITHUB_USER}:${ENTERPRISE_GITHUB_TOKEN}@github.com/odoo/enterprise.git"
 }
 
 clone_enterprise_repository() {
@@ -49,10 +65,8 @@ clone_enterprise_repository() {
         clone_args=(--depth "$CLONE_DEPTH")
     fi
 
-    local repo_url="https://${ENTERPRISE_GITHUB_USER}:${ENTERPRISE_GITHUB_TOKEN}@github.com/odoo/enterprise.git"
-
     run_command "Clonando Odoo Enterprise ${ODOO_VERSION}..." \
-        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "${clone_args[@]}" "$repo_url" "$ENTERPRISE_DIR"
+        "$GIT_COMMAND" clone --branch "$ODOO_VERSION" "${clone_args[@]}" "$ENTERPRISE_REPO_URL" "$ENTERPRISE_DIR"
 
     run_command "Configurando permisos de ${ENTERPRISE_DIR}..." \
         "$CHOWN_COMMAND" -R "${RUN_AS_USER}:${RUN_AS_GROUP}" "$ENTERPRISE_DIR"
